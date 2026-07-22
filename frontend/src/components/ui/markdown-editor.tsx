@@ -7,6 +7,8 @@ import rehypeKatex from 'rehype-katex'
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import type { PluggableList } from 'unified'
 
+import { KATEX_OPTIONS } from '@/lib/utils/katex-options'
+
 const MDEditor = dynamic(
   () => import('@uiw/react-md-editor').then((mod) => mod.default),
   { ssr: false }
@@ -44,13 +46,9 @@ const SANITIZE_SCHEMA = {
   },
 }
 
-// singleDollarTextMath: false - AI-generated content routinely contains
-// dollar amounts (e.g. "$5-10"); with single-dollar math enabled, remark-math
-// misreads those as inline LaTeX and KaTeX then warns/fails on the literal
-// text inside. Block math ($$...$$) is unambiguous and stays enabled.
 export const PREVIEW_OPTIONS = {
-  remarkPlugins: [[remarkMath, { singleDollarTextMath: false }]] as PluggableList,
-  rehypePlugins: [[rehypeSanitize, SANITIZE_SCHEMA], rehypeKatex] as PluggableList,
+  remarkPlugins: [remarkMath] as PluggableList,
+  rehypePlugins: [[rehypeSanitize, SANITIZE_SCHEMA], [rehypeKatex, KATEX_OPTIONS]] as PluggableList,
 }
 
 export interface MarkdownEditorProps {
