@@ -127,7 +127,7 @@ export function TransformationPlayground({ transformations, selectedTransformati
                   <CardContent className="pt-6">
                     <div className="prose prose-sm max-w-none dark:prose-invert">
                       <ReactMarkdown
-                        remarkPlugins={[remarkGfm, remarkMath]}
+                        remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: false }]]}
                         rehypePlugins={[rehypeKatex]}
                         components={{
                           table: ({ children }) => (

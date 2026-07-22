@@ -44,8 +44,12 @@ const SANITIZE_SCHEMA = {
   },
 }
 
+// singleDollarTextMath: false - AI-generated content routinely contains
+// dollar amounts (e.g. "$5-10"); with single-dollar math enabled, remark-math
+// misreads those as inline LaTeX and KaTeX then warns/fails on the literal
+// text inside. Block math ($$...$$) is unambiguous and stays enabled.
 export const PREVIEW_OPTIONS = {
-  remarkPlugins: [remarkMath] as PluggableList,
+  remarkPlugins: [[remarkMath, { singleDollarTextMath: false }]] as PluggableList,
   rehypePlugins: [[rehypeSanitize, SANITIZE_SCHEMA], rehypeKatex] as PluggableList,
 }
 
