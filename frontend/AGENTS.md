@@ -8,6 +8,7 @@ Normative rules for working on the Next.js frontend. Architecture and flow walkt
 - Lint: `npm run lint` (`eslint src/`)
 - Tests: `npm run test` (`vitest run`) · coverage: `npm run test:coverage`
 - Build: `npm run build`
+- Run a production build locally: after `npm run build`, `output: "standalone"` (`next.config.ts`) writes a self-contained server to `.next/standalone/`, but it does **not** include static assets — copy them in first: `cp -r .next/static .next/standalone/.next/static && cp -r public .next/standalone/public`, then `node .next/standalone/server.js` (or `node start-server.js`, which just defaults `PORT` to 8502 and requires the same file). Mirrors the `frontend-builder` stage in the root `Dockerfile` — check there if the copy list ever changes.
 
 ## Hard rules
 
@@ -22,6 +23,7 @@ Normative rules for working on the Next.js frontend. Architecture and flow walkt
 - Zustand stores with `persist`: check `hasHydrated` before rendering persisted state (SSR hydration mismatch), and keep each store's `name` key unique (localStorage collision).
 - `NEXT_PUBLIC_API_TIMEOUT_MS`: default 600000 (10 min) for slow LLM calls; `0` disables the timeout.
 - SSE (`useAsk`): incomplete lines stay in the buffer between reads; incomplete JSON is silently skipped — don't "simplify" the buffer handling.
+- **`next dev` buffers SSE responses until the connection closes** — Ask/Search (`/api/search/ask`) and chat (`/api/sources/[sourceId]/chat/sessions/[sessionId]/messages`), both proxied through `src/app/api/_sse-proxy.ts`, will appear to hang with zero incremental output under the dev server, then dump the entire stream at once right before it closes. This is a Turbopack dev-server limitation, not a bug in `_sse-proxy.ts`, `ask.py`, or `use-ask.ts` — all stream correctly under `next start`/the standalone build. Don't chase a "hung" Ask/chat request as an app bug without first checking whether the frontend is running in dev mode; if it is, reproduce against a production build before concluding anything is actually broken.
 - `useSourceStatus` polls every 2s while status is `running`/`queued`/`new`.
 - Cache invalidation is deliberately broad (e.g. `['sources']` hits all source queries) — a simplicity/perf trade-off, be precise only when it matters.
 - Dark mode requires the `dark` class on the document root, not just `prefers-color-scheme`. It's hand-rolled: the zustand `theme-store` (persisted as `theme-storage`) sets the class via `ThemeProvider` — no next-themes.
