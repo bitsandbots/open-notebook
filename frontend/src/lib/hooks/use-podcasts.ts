@@ -26,6 +26,7 @@ export function useLanguages() {
 
 interface EpisodeStatusCounts {
   total: number
+  draft: number
   running: number
   completed: number
   failed: number
@@ -69,6 +70,7 @@ export function usePodcastEpisodes(options?: { autoRefresh?: boolean }) {
   const statusCounts = useMemo<EpisodeStatusCounts>(
     () => ({
       total: episodes.length,
+      draft: statusGroups.draft.length,
       running: statusGroups.running.length,
       completed: statusGroups.completed.length,
       failed: statusGroups.failed.length,
@@ -408,6 +410,54 @@ export function useGeneratePodcast() {
       toast({
         title: t('podcasts.failedToStartGeneration'),
         description: getApiErrorKey(error, t('podcasts.tryAgainMoment')),
+        variant: 'destructive',
+      })
+    },
+  })
+}
+
+export function useApproveDraft() {
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+  const { t } = useTranslation()
+
+  return useMutation({
+    mutationFn: (episodeId: string) => podcastsApi.approveDraft(episodeId),
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: QUERY_KEYS.podcastEpisodes })
+      toast({
+        title: t('podcasts.renderStarted'),
+        description: t('podcasts.renderStartedDesc'),
+      })
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: t('podcasts.failedToApprove'),
+        description: getApiErrorKey(error, t('common.error')),
+        variant: 'destructive',
+      })
+    },
+  })
+}
+
+export function useCancelEpisode() {
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+  const { t } = useTranslation()
+
+  return useMutation({
+    mutationFn: (episodeId: string) => podcastsApi.cancelEpisode(episodeId),
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: QUERY_KEYS.podcastEpisodes })
+      toast({
+        title: t('podcasts.episodeCancelled'),
+        description: t('podcasts.episodeCancelledDesc'),
+      })
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: t('podcasts.failedToCancel'),
+        description: getApiErrorKey(error, t('common.error')),
         variant: 'destructive',
       })
     },

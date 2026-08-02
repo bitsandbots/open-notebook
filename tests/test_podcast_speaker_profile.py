@@ -23,7 +23,7 @@ from commands.podcast_commands import (
     PodcastGenerationInput,
     generate_podcast_command,
 )
-from open_notebook.podcasts.models import EpisodeProfile, SpeakerProfile
+from open_notebook.podcasts.models import EpisodeProfile, PodcastEpisode, SpeakerProfile
 
 
 def make_episode_profile(speaker_config="speaker_profile:from_episode"):
@@ -338,7 +338,33 @@ class TestOrphanedProfileDoesNotPoisonConfig:
 
         resolved: tuple = ("openai", "model-name", {})
 
+        # Mock save() to set a fake id on the instance so the
+        # draft→render handoff in the legacy command works.
+        async def _fake_save(self):
+            self.id = "episode:test-ep"
+
+        # The render command loads the episode back via PodcastEpisode.get().
+        # Return a minimal episode that has the fields render_podcast_command
+        # needs: content, briefing, episode_profile, speaker_profile,
+        # pipeline_status, audio_file, and a save() that works.
+        _fake_episode = PodcastEpisode(
+            id="episode:test-ep",
+            name="Test Episode",
+            episode_profile={"name": "Test Episode Profile"},
+            speaker_profile={"name": "Tech Experts"},
+            briefing="brief",
+            content="test content",
+            audio_file=None,
+            pipeline_status="draft_ready",
+        )
+        object.__setattr__(_fake_episode, "save", AsyncMock())
+
         with (
+            patch.object(
+                PodcastEpisode,
+                "get",
+                new=AsyncMock(return_value=_fake_episode),
+            ),
             patch.object(
                 EpisodeProfile,
                 "get_by_name",
@@ -386,7 +412,7 @@ class TestOrphanedProfileDoesNotPoisonConfig:
             ),
             patch(
                 "open_notebook.podcasts.models.PodcastEpisode.save",
-                new=AsyncMock(),
+                new=_fake_save,
             ),
         ):
             result = await generate_podcast_command(make_input())

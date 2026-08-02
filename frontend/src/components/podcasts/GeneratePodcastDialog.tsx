@@ -9,6 +9,7 @@ import { useEpisodeProfiles, useGeneratePodcast } from '@/lib/hooks/use-podcasts
 import { chatApi } from '@/lib/api/chat'
 import { sourcesApi } from '@/lib/api/sources'
 import { notesApi } from '@/lib/api/notes'
+import { podcastsApi } from '@/lib/api/podcasts'
 import { NoteResponse, SourceListResponse } from '@/lib/types/api'
 import { PodcastGenerationRequest } from '@/lib/types/podcasts'
 import { QUERY_KEYS } from '@/lib/api/query-client'
@@ -53,6 +54,7 @@ export function GeneratePodcastDialog({ open, onOpenChange }: GeneratePodcastDia
   const [instructions, setInstructions] = useState('')
 
   const [isBuildingContext, setIsBuildingContext] = useState(false)
+  const [isProposing, setIsProposing] = useState(false)
   const [tokenCount, setTokenCount] = useState<number>(0)
   const [charCount, setCharCount] = useState<number>(0)
 
@@ -382,6 +384,54 @@ export function GeneratePodcastDialog({ open, onOpenChange }: GeneratePodcastDia
     return parts.join('\n\n')
   }, [notebooks, selections, t])
 
+  const handleProposeBrief = useCallback(async () => {
+    if (!selectedEpisodeProfile) {
+      toast({
+        title: t('podcasts.profileRequired'),
+        description: t('podcasts.profileRequiredDesc'),
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setIsProposing(true)
+    try {
+      const content = await buildContentFromSelections()
+      if (!content.trim()) {
+        toast({
+          title: t('podcasts.addContext'),
+          description: t('podcasts.addContextDesc'),
+          variant: 'destructive',
+        })
+        return
+      }
+
+      const proposal = await podcastsApi.proposeBrief({
+        content,
+        episode_profile_name: selectedEpisodeProfile.name,
+      })
+
+      // Fill in the form with the AI's suggestions
+      if (proposal.briefing) {
+        setInstructions(proposal.briefing)
+      }
+
+      toast({
+        title: t('common.success'),
+        description: t('podcasts.proposeBriefDesc'),
+      })
+    } catch (error) {
+      console.error('Brief proposal failed', error)
+      toast({
+        title: t('podcasts.briefProposalFailed'),
+        description: t('podcasts.briefProposalFailedDesc'),
+        variant: 'destructive',
+      })
+    } finally {
+      setIsProposing(false)
+    }
+  }, [buildContentFromSelections, selectedEpisodeProfile, toast, t])
+
   const handleSubmit = useCallback(async () => {
     if (!selectedEpisodeProfile) {
       toast({
@@ -580,6 +630,15 @@ export function GeneratePodcastDialog({ open, onOpenChange }: GeneratePodcastDia
             </div>
 
             <div className="flex flex-col gap-3">
+              <Button
+                onClick={handleProposeBrief}
+                disabled={isProposing || isSubmitting}
+                variant="outline"
+                className="w-full"
+              >
+                {isProposing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isProposing ? t('podcasts.proposingBrief') : t('podcasts.proposeBrief')}
+              </Button>
               <Button
                 onClick={handleSubmit}
                 disabled={isSubmitting}

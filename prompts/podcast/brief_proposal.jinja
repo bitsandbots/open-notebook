@@ -1,0 +1,23 @@
+You are an AI assistant helping to configure a podcast episode. Based on the source content below, propose the best settings for this episode.
+
+<source_content>
+{% if content is string %}
+{{ content }}
+{% else %}
+{% for item in content %}
+<content_piece>
+{{ item }}
+</content_piece>
+{% endfor %}
+{% endif %}
+</source_content>
+
+Analyze the content and propose:
+
+1. **Language**: The BCP 47 language code (e.g., "en-US", "pt-BR", "es-ES") that best matches the content. If the content is multilingual, pick the dominant language.
+
+2. **Number of segments**: How many segments (3-20) would best cover this content? Consider the depth and breadth of the material. More complex or longer content may need more segments.
+
+3. **Briefing**: A concise paragraph (2-4 sentences) that captures the episode's focus, tone, and key topics. This will be used as the starting briefing for the AI that generates the outline and transcript.
+
+{{ format_instructions }}

@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
 
 from loguru import logger
@@ -6,6 +7,22 @@ from surrealdb import RecordID
 
 from open_notebook.database.repository import ensure_record_id, repo_query
 from open_notebook.domain.base import ObjectModel
+
+
+class PipelineStatus(str, Enum):
+    """Podcast episode lifecycle states stored on the Episode record.
+
+    Replaces job-status polling for UI display — the episode carries its own
+    state so the frontend doesn't need to cross-reference the surreal-commands
+    job table for basic status information.
+    """
+
+    DRAFTING = "drafting"
+    DRAFT_READY = "draft_ready"
+    RENDERING = "rendering"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 async def _resolve_model_config(
@@ -219,6 +236,13 @@ class PodcastEpisode(ObjectModel):
     """Enhanced PodcastEpisode with job tracking and metadata"""
 
     table_name: ClassVar[str] = "episode"
+    nullable_fields: ClassVar[set[str]] = {
+        "audio_file",
+        "transcript",
+        "outline",
+        "command",
+        "pipeline_status",
+    }
 
     name: str = Field(..., description="Episode name")
     episode_profile: Dict[str, Any] = Field(
@@ -246,6 +270,14 @@ class PodcastEpisode(ObjectModel):
     )
     command: Optional[Union[str, RecordID]] = Field(
         default=None, description="Link to surreal-commands job"
+    )
+    pipeline_status: Optional[str] = Field(
+        default=None,
+        description=(
+            "Episode lifecycle state (PipelineStatus enum). Replaces "
+            "job-status polling for UI display. None for legacy episodes "
+            "created before the state machine was introduced."
+        ),
     )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)

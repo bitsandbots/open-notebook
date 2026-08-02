@@ -62,9 +62,11 @@ function extractHostname(hostHeader: string): string | null {
  */
 export async function GET(request: NextRequest) {
   // Priority 1: Check if API_URL is explicitly set
-  const envApiUrl = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL
+  // Use ?? so an explicit empty string (meaning "use relative paths via
+  // Next.js proxy") is honoured rather than falling through to auto-detection.
+  const envApiUrl = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL
 
-  if (envApiUrl) {
+  if (envApiUrl !== undefined && envApiUrl !== null) {
     return NextResponse.json({
       apiUrl: envApiUrl,
     })

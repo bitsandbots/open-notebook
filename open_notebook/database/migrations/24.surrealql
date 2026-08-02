@@ -1,0 +1,20 @@
+-- Migration 24: Create report table for Deliverable Studio Phase 2
+-- Reports are AI-generated documents from notebook sources, exportable in
+-- multiple formats with editable content and versioning support.
+
+DEFINE TABLE report SCHEMAFULL;
+DEFINE FIELD name ON report TYPE string;
+DEFINE FIELD content ON report TYPE string;
+DEFINE FIELD content_type ON report TYPE string DEFAULT "markdown";
+DEFINE FIELD notebook_id ON report TYPE option<record<notebook>>;
+DEFINE FIELD source_ids ON report TYPE array DEFAULT [];
+DEFINE FIELD source_ids.* ON report TYPE record<source>;
+DEFINE FIELD status ON report TYPE string DEFAULT "draft";
+DEFINE FIELD report_group_id ON report TYPE option<string>;
+DEFINE FIELD parent_id ON report TYPE option<record<report>>;
+DEFINE FIELD word_count ON report TYPE option<int>;
+DEFINE FIELD created ON report TYPE datetime DEFAULT time::now();
+DEFINE FIELD updated ON report TYPE datetime DEFAULT time::now();
+
+DEFINE INDEX idx_report_notebook ON report FIELDS notebook_id;
+DEFINE INDEX idx_report_group ON report FIELDS report_group_id;

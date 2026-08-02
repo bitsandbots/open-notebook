@@ -37,9 +37,17 @@ class PasswordAuthMiddleware(BaseHTTPMiddleware):
         if not self.password:
             return await call_next(request)
 
-        # Skip authentication for excluded paths
-        if request.url.path in self.excluded_paths:
-            return await call_next(request)
+        # Skip authentication for excluded paths.
+        # Exact match for literal paths; glob match for paths containing '*'
+        # (e.g. "/api/podcasts/episodes/*/audio" matches any episode audio URL).
+        path = request.url.path
+        for excluded in self.excluded_paths:
+            if "*" in excluded:
+                prefix, suffix = excluded.split("*", 1)
+                if path.startswith(prefix) and path.endswith(suffix):
+                    return await call_next(request)
+            elif path == excluded:
+                return await call_next(request)
 
         # Skip authentication for CORS preflight requests (OPTIONS)
         if request.method == "OPTIONS":

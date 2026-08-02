@@ -46,6 +46,9 @@ dependencies = [
     "numpy>=2.4.1",
     "pycountry>=26.2.16",
     "babel>=2.18.0",
+    "pypandoc>=1.16.2",
+    "pypandoc_binary>=1.16.2",
+    "weasyprint>=62.0",
 ]
 
 [tool.setuptools]

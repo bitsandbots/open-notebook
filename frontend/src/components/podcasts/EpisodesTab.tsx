@@ -3,7 +3,13 @@
 import { useCallback, useState } from 'react'
 import { AlertCircle, Loader2, RefreshCcw } from 'lucide-react'
 
-import { useDeletePodcastEpisode, usePodcastEpisodes, useRetryPodcastEpisode } from '@/lib/hooks/use-podcasts'
+import {
+  useApproveDraft,
+  useCancelEpisode,
+  useDeletePodcastEpisode,
+  usePodcastEpisodes,
+  useRetryPodcastEpisode,
+} from '@/lib/hooks/use-podcasts'
 import { EpisodeCard } from '@/components/podcasts/EpisodeCard'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -14,10 +20,15 @@ import { useTranslation } from '@/lib/hooks/use-translation'
 import type { TFunction } from 'i18next'
 
 const getSTATUS_ORDER = (t: TFunction): Array<{
-  key: 'running' | 'completed' | 'failed' | 'pending'
+  key: 'draft' | 'running' | 'completed' | 'failed' | 'pending'
   title: string
   description?: string
 }> => [
+  {
+    key: 'draft',
+    title: t('podcasts.statusDraftTitle'),
+    description: t('podcasts.statusDraftDesc'),
+  },
   {
     key: 'running',
     title: t('podcasts.statusRunningTitle'),
@@ -44,7 +55,7 @@ function SummaryBadge({ label, value }: { label: string; value: number }) {
   return (
     <Badge variant="outline" className="font-medium">
       <span className="text-muted-foreground mr-1.5">{label}</span>
-      <span className="text-foreground">{value}</span>
+      <span className="font-mono text-foreground">{value}</span>
     </Badge>
   )
 }
@@ -63,6 +74,8 @@ export function EpisodesTab() {
   } = usePodcastEpisodes()
   const deleteEpisode = useDeletePodcastEpisode()
   const retryEpisode = useRetryPodcastEpisode()
+  const approveDraft = useApproveDraft()
+  const cancelEpisode = useCancelEpisode()
 
   const handleRefresh = useCallback(() => {
     void refetch()
@@ -78,13 +91,23 @@ export function EpisodesTab() {
     [retryEpisode]
   )
 
+  const handleApprove = useCallback(
+    async (episodeId: string) => { await approveDraft.mutateAsync(episodeId) },
+    [approveDraft]
+  )
+
+  const handleCancel = useCallback(
+    async (episodeId: string) => { await cancelEpisode.mutateAsync(episodeId) },
+    [cancelEpisode]
+  )
+
   const emptyState = !isLoading && episodes.length === 0
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
-          <h2 className="text-xl font-semibold">{t('podcasts.overviewTitle')}</h2>
+          <h2 className="font-display text-xl font-semibold tracking-tight">{t('podcasts.overviewTitle')}</h2>
           <p className="text-sm text-muted-foreground">
             {t('podcasts.overviewDesc')}
           </p>
@@ -111,6 +134,7 @@ export function EpisodesTab() {
 
       <div className="flex flex-wrap gap-2">
         <SummaryBadge label={t('podcasts.total')} value={statusCounts.total} />
+        <SummaryBadge label={t('podcasts.draftReady')} value={statusCounts.draft} />
         <SummaryBadge label={t('podcasts.processingLabel')} value={statusCounts.running} />
         <SummaryBadge label={t('podcasts.completedLabel')} value={statusCounts.completed} />
         <SummaryBadge label={t('podcasts.failedLabel')} value={statusCounts.failed} />
@@ -135,7 +159,7 @@ export function EpisodesTab() {
       ) : null}
 
       {emptyState ? (
-        <div className="rounded-lg border border-dashed bg-muted/30 p-10 text-center">
+        <div className="rounded-md border border-dashed p-10 text-center">
           <p className="text-sm text-muted-foreground">
             {t('podcasts.noEpisodesYet')}
           </p>
@@ -166,6 +190,10 @@ export function EpisodesTab() {
                   deleting={deleteEpisode.isPending}
                   onRetry={handleRetry}
                   retrying={retryEpisode.isPending}
+                  onApprove={handleApprove}
+                  approving={approveDraft.isPending}
+                  onCancel={handleCancel}
+                  cancelling={cancelEpisode.isPending}
                 />
               ))}
             </div>

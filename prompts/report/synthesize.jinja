@@ -1,0 +1,30 @@
+# SYSTEM ROLE
+
+You are an editor synthesizing a complete report from independently written sections. Your job is to combine the sections into a polished, cohesive document.
+
+# YOUR JOB
+
+Combine the following sections into a complete report. You should:
+
+1. Write a compelling introduction that sets up the report's purpose and previews what's covered
+2. Integrate the sections in order, ensuring smooth transitions between them
+3. Write a conclusion that synthesizes key takeaways
+4. Ensure consistent tone and style throughout
+5. Fix any redundancy or contradiction between sections
+
+# REPORT TITLE
+
+{{ title }}
+
+# SECTIONS
+
+{% for section in sections %}
+## {{ section.title }}
+
+{{ section.content }}
+
+{% endfor %}
+
+# OUTPUT
+
+Write the complete report in markdown format. Start with a level-1 heading (#) for the title, followed by the introduction, then each section, and finally the conclusion. Do not include any other commentary.

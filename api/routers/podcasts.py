@@ -1,9 +1,10 @@
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from loguru import logger
 from pydantic import BaseModel
+from surreal_commands import submit_command
 
 from api.podcast_service import (
     PodcastGenerationRequest,
@@ -13,7 +14,7 @@ from api.podcast_service import (
 from open_notebook.ai.models import Model
 from open_notebook.exceptions import OpenNotebookError
 from open_notebook.podcasts.audio_paths import resolve_contained_audio_path
-from open_notebook.podcasts.models import PodcastEpisode
+from open_notebook.podcasts.models import PipelineStatus, PodcastEpisode
 
 router = APIRouter()
 
@@ -119,6 +120,7 @@ class PodcastEpisodeResponse(BaseModel):
     created: Optional[str] = None
     job_status: Optional[str] = None
     error_message: Optional[str] = None
+    pipeline_status: Optional[str] = None
 
 
 @router.post("/podcasts/generate", response_model=PodcastGenerationResponse)
@@ -243,6 +245,7 @@ async def list_podcast_episodes():
                     created=str(episode.created) if episode.created else None,
                     job_status=job_status,
                     error_message=error_message,
+                    pipeline_status=episode.pipeline_status,
                 )
             )
 
@@ -307,6 +310,7 @@ async def get_podcast_episode(episode_id: str):
             created=str(episode.created) if episode.created else None,
             job_status=job_status,
             error_message=error_message,
+            pipeline_status=episode.pipeline_status,
         )
 
     except HTTPException:
@@ -429,4 +433,306 @@ async def delete_podcast_episode(episode_id: str):
         logger.error(f"Error deleting podcast episode: {str(e)}")
         raise HTTPException(
             status_code=500, detail="Failed to delete episode"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Draft review endpoints — two-phase generation (draft → review → render)
+# ---------------------------------------------------------------------------
+
+
+class DraftResponse(BaseModel):
+    """Transcript + outline for the draft review UI."""
+
+    episode_id: str
+    name: str
+    pipeline_status: Optional[str] = None
+    transcript: Optional[Dict[str, Any]] = None
+    outline: Optional[Dict[str, Any]] = None
+    briefing: str
+
+
+class DraftUpdateRequest(BaseModel):
+    """User edits to the transcript before rendering."""
+
+    transcript: Optional[Dict[str, Any]] = None
+
+
+@router.get("/podcasts/episodes/{episode_id}/draft", response_model=DraftResponse)
+async def get_episode_draft(episode_id: str):
+    """Return the transcript + outline for review before rendering."""
+    try:
+        episode = await PodcastService.get_episode(episode_id)
+        return DraftResponse(
+            episode_id=str(episode.id),
+            name=episode.name,
+            pipeline_status=episode.pipeline_status,
+            transcript=episode.transcript,
+            outline=episode.outline,
+            briefing=episode.briefing,
+        )
+    except HTTPException:
+        raise
+    except OpenNotebookError:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching episode draft: {str(e)}")
+        raise HTTPException(status_code=404, detail="Episode not found")
+
+
+@router.patch("/podcasts/episodes/{episode_id}/draft")
+async def update_episode_draft(episode_id: str, request: DraftUpdateRequest):
+    """Save user edits to the transcript before rendering."""
+    try:
+        episode = await PodcastService.get_episode(episode_id)
+
+        if episode.pipeline_status not in (
+            PipelineStatus.DRAFT_READY.value,
+            None,  # legacy episodes
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Episode is not in draft_ready state "
+                f"(current: {episode.pipeline_status})",
+            )
+
+        if request.transcript is not None:
+            episode.transcript = request.transcript
+            await episode.save()
+
+        return {"message": "Draft updated successfully", "episode_id": episode_id}
+    except HTTPException:
+        raise
+    except OpenNotebookError:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating episode draft: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to update draft")
+
+
+@router.post("/podcasts/episodes/{episode_id}/approve")
+async def approve_episode_draft(episode_id: str):
+    """Approve the draft and dispatch the render command (TTS + audio)."""
+    try:
+        episode = await PodcastService.get_episode(episode_id)
+
+        if episode.pipeline_status not in (
+            PipelineStatus.DRAFT_READY.value,
+            None,  # legacy episodes
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Episode is not ready for approval "
+                f"(current: {episode.pipeline_status})",
+            )
+
+        # Ensure command modules are imported before submitting
+        try:
+            import commands.podcast_commands  # noqa: F401
+        except ImportError:
+            raise HTTPException(
+                status_code=500, detail="Podcast commands not available"
+            )
+
+        job_id = submit_command(
+            "open_notebook",
+            "render_podcast",
+            {"episode_id": episode_id},
+        )
+
+        logger.info(
+            f"Dispatched render_podcast job {job_id} for episode {episode_id}"
+        )
+        return {
+            "job_id": str(job_id),
+            "message": "Render job submitted successfully",
+            "episode_id": episode_id,
+        }
+    except HTTPException:
+        raise
+    except OpenNotebookError:
+        raise
+    except Exception as e:
+        logger.error(f"Error approving episode draft: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to approve draft")
+
+
+@router.post("/podcasts/episodes/{episode_id}/cancel")
+async def cancel_episode_generation(episode_id: str):
+    """Cancel an in-progress episode generation."""
+    try:
+        episode = await PodcastService.get_episode(episode_id)
+
+        if episode.pipeline_status not in (
+            PipelineStatus.DRAFTING.value,
+            PipelineStatus.DRAFT_READY.value,
+            PipelineStatus.RENDERING.value,
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Episode is not in a cancellable state "
+                f"(current: {episode.pipeline_status})",
+            )
+
+        episode.pipeline_status = PipelineStatus.CANCELLED.value
+        await episode.save()
+
+        return {"message": "Episode cancelled", "episode_id": episode_id}
+    except HTTPException:
+        raise
+    except OpenNotebookError:
+        raise
+    except Exception as e:
+        logger.error(f"Error cancelling episode: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to cancel episode")
+
+
+# ---------------------------------------------------------------------------
+# Voice preview — test a TTS voice before full generation
+# ---------------------------------------------------------------------------
+
+
+class VoicePreviewRequest(BaseModel):
+    voice_model_id: str
+    voice_id: str
+    text: str = "Hello, this is a preview of how this voice sounds."
+
+
+@router.post("/podcasts/voices/preview")
+async def preview_voice(request: VoicePreviewRequest):
+    """Generate a short TTS preview for a voice.
+
+    Resolves the Model record to get provider/model/config, creates a TTS
+    model via esperanto's AIFactory, and returns the audio as MP3 bytes.
+    """
+    import io
+
+    from esperanto import AIFactory
+
+    from open_notebook.ai.models import Model
+    from open_notebook.podcasts.models import _resolve_model_config
+
+    try:
+        # Resolve the voice model record
+        provider, model_name, config = await _resolve_model_config(
+            request.voice_model_id
+        )
+
+        # Create TTS model via esperanto
+        tts_model = AIFactory.create_text_to_speech(
+            provider, model_name, **config
+        )
+
+        # Generate preview audio
+        audio_buffer = io.BytesIO()
+        await tts_model.agenerate_speech(
+            text=request.text,
+            voice_id=request.voice_id,
+            output_buffer=audio_buffer,
+        )
+        audio_buffer.seek(0)
+
+        return StreamingResponse(
+            audio_buffer,
+            media_type="audio/mpeg",
+            headers={"Content-Disposition": "inline; filename=voice-preview.mp3"},
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Voice preview failed: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate voice preview: {str(e)}",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Brief proposal — LLM proposes episode settings from source content
+# ---------------------------------------------------------------------------
+
+
+class BriefProposalRequest(BaseModel):
+    content: str
+    episode_profile_name: str
+
+
+class BriefProposalResponse(BaseModel):
+    language: str = "en-US"
+    num_segments: int = 5
+    briefing: str = ""
+
+
+@router.post("/podcasts/propose-brief", response_model=BriefProposalResponse)
+async def propose_brief(request: BriefProposalRequest):
+    """Ask the LLM to propose language, segment count, and briefing.
+
+    Uses the episode profile's outline_llm model. Returns a proposal the
+    user can review before triggering full draft generation.
+    """
+    import json
+
+    from open_notebook.ai.prompter import Prompter
+    from open_notebook.podcasts.models import EpisodeProfile
+
+    try:
+        episode_profile = await EpisodeProfile.get_by_name(
+            request.episode_profile_name
+        )
+        if not episode_profile:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Episode profile '{request.episode_profile_name}' not found",
+            )
+
+        if not episode_profile.outline_llm:
+            raise HTTPException(
+                status_code=400,
+                detail="Episode profile has no outline model configured",
+            )
+
+        # Resolve the model
+        provider, model_name, config = await episode_profile.resolve_outline_config()
+
+        # Build the prompt
+        prompter = Prompter(prompt_template="podcast/brief_proposal")
+        messages = prompter.build_messages(
+            data={"content": request.content}
+        )
+
+        # Call the LLM
+        from esperanto import AIFactory
+
+        model = AIFactory.create_language(provider, model_name, **config)
+        response = await model.ainvoke(messages)
+
+        # Parse the JSON response
+        content = response.content if hasattr(response, "content") else str(response)
+        # Strip markdown code fences if present
+        if content.startswith("```"):
+            lines = content.split("\n")
+            content = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+
+        proposal = json.loads(content)
+
+        return BriefProposalResponse(
+            language=proposal.get("language", "en-US"),
+            num_segments=proposal.get("num_segments", 5),
+            briefing=proposal.get("briefing", ""),
+        )
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse brief proposal JSON: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to parse LLM response for brief proposal",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Brief proposal failed: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate brief proposal: {str(e)}",
         )

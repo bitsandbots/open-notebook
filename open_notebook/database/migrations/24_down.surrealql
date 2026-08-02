@@ -1,0 +1,2 @@
+-- Migration 24 down: Remove report table
+REMOVE TABLE report;

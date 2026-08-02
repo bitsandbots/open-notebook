@@ -7,6 +7,9 @@ import {
   Language,
   PodcastGenerationRequest,
   PodcastGenerationResponse,
+  EpisodeDraft,
+  BriefProposalRequest,
+  BriefProposalResponse,
 } from '@/lib/types/podcasts'
 
 export type EpisodeProfileInput = Omit<EpisodeProfile, 'id'>
@@ -122,5 +125,64 @@ export const podcastsApi = {
   listLanguages: async () => {
     const response = await apiClient.get<Language[]>('/languages')
     return response.data
+  },
+
+  // Draft review endpoints
+  getDraft: async (episodeId: string) => {
+    const response = await apiClient.get<EpisodeDraft>(
+      `/podcasts/episodes/${episodeId}/draft`
+    )
+    return response.data
+  },
+
+  updateDraft: async (
+    episodeId: string,
+    payload: { transcript?: Record<string, unknown> }
+  ) => {
+    const response = await apiClient.patch(
+      `/podcasts/episodes/${episodeId}/draft`,
+      payload
+    )
+    return response.data
+  },
+
+  approveDraft: async (episodeId: string) => {
+    const response = await apiClient.post<{
+      job_id: string
+      message: string
+      episode_id: string
+    }>(`/podcasts/episodes/${episodeId}/approve`)
+    return response.data
+  },
+
+  cancelEpisode: async (episodeId: string) => {
+    const response = await apiClient.post<{
+      message: string
+      episode_id: string
+    }>(`/podcasts/episodes/${episodeId}/cancel`)
+    return response.data
+  },
+
+  // Brief proposal — LLM proposes episode settings from source content
+  proposeBrief: async (payload: BriefProposalRequest) => {
+    const response = await apiClient.post<BriefProposalResponse>(
+      '/podcasts/propose-brief',
+      payload
+    )
+    return response.data
+  },
+
+  // Voice preview — generate a short TTS sample
+  previewVoice: async (payload: {
+    voice_model_id: string
+    voice_id: string
+    text?: string
+  }): Promise<string> => {
+    const response = await apiClient.post(
+      '/podcasts/voices/preview',
+      payload,
+      { responseType: 'blob' }
+    )
+    return URL.createObjectURL(response.data)
   },
 }

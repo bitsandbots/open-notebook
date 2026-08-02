@@ -102,6 +102,26 @@ CORS_ORIGINS=https://notebook.example.com
 
 ---
 
+## Deliverable Studio: Video Generation
+
+| Variable | Required? | Default | Description |
+|----------|-----------|---------|-------------|
+| `OPEN_NOTEBOOK_ENABLE_VIDEO` | No | `false` | **Opt-in** — enables the video generation feature. Set to `true` to unlock narrated video overviews from notebook sources. Requires Playwright + Chromium installed (see [Video Setup](video-setup.md)). Off by default to keep the Docker image lean (~300MB savings). |
+
+Video output is stored in `data/videos/` alongside your notebook data. Videos use the same TTS infrastructure as podcasts (any configured TTS provider). When disabled (default), the video navigation item and API endpoints are hidden from the UI.
+
+---
+
+## Deliverable Studio: Report Export
+
+Report generation uses `pypandoc` (bundled binary) and `weasyprint` for PDF output. No additional environment variables needed — both packages are installed as Python dependencies. For direct pandoc configuration (rarely needed):
+
+| Variable | Required? | Default | Description |
+|----------|-----------|---------|-------------|
+| `PYPANDOC_PANDOC` | No | Bundled binary | Path to a custom pandoc binary. Not needed normally — `pypandoc_binary` ships a self-contained pandoc. Only set if you need a specific pandoc version. |
+
+---
+
 ## Content Extraction
 
 | Variable | Required? | Default | Description |
@@ -203,6 +223,14 @@ SURREAL_USER=production_user
 SURREAL_PASSWORD=secure_password
 ```
 
+### With Video Generation Enabled
+```
+OPEN_NOTEBOOK_ENCRYPTION_KEY=your-secret-key
+OPEN_NOTEBOOK_ENABLE_VIDEO=true
+# Worker concurrency kept low to avoid resource contention during video renders
+OPEN_NOTEBOOK_WORKER_MAX_TASKS=2
+```
+
 ### Self-Hosted Behind Reverse Proxy
 ```
 OPEN_NOTEBOOK_ENCRYPTION_KEY=your-secret-key
@@ -273,6 +301,7 @@ env | grep -E "^[A-Z_]+=" | sort
 - [ ] **Test Connection** to verify
 - [ ] **Discover & Register Models**
 - [ ] Set `API_URL` if behind reverse proxy
+- [ ] Set `OPEN_NOTEBOOK_ENABLE_VIDEO=true` (optional — enables video generation)
 - [ ] Change `SURREAL_PASSWORD` in production
 - [ ] Try a test chat
 

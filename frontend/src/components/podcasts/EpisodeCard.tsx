@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { getDateLocale } from '@/lib/utils/date-locale'
-import { InfoIcon, RefreshCcw, Trash2 } from 'lucide-react'
+import { Edit3, InfoIcon, RefreshCcw, Trash2 } from 'lucide-react'
 
 import apiClient from '@/lib/api/client'
-import { resolvePodcastAssetUrl } from '@/lib/api/podcasts'
-import { EpisodeStatus, FAILED_EPISODE_STATUSES, PodcastEpisode } from '@/lib/types/podcasts'
+import { podcastsApi, resolvePodcastAssetUrl } from '@/lib/api/podcasts'
+import { EpisodeStatus, FAILED_EPISODE_STATUSES, PipelineStatus, PodcastEpisode } from '@/lib/types/podcasts'
 import { cn } from '@/lib/utils'
 import {
   AlertDialog,
@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { DraftReview } from '@/components/podcasts/DraftReview'
 import { useTranslation } from '@/lib/hooks/use-translation'
 import type { TFunction } from 'i18next'
 
@@ -42,6 +43,10 @@ interface EpisodeCardProps {
   deleting?: boolean
   onRetry?: (episodeId: string) => Promise<void> | void
   retrying?: boolean
+  onApprove?: (episodeId: string) => Promise<void> | void
+  approving?: boolean
+  onCancel?: (episodeId: string) => Promise<void> | void
+  cancelling?: boolean
 }
 
 const getSTATUS_META = (t: TFunction): Record<
@@ -50,31 +55,65 @@ const getSTATUS_META = (t: TFunction): Record<
 > => ({
   running: {
     label: t('podcasts.processingLabel'),
-    className: 'bg-amber-100 text-amber-800 border-amber-200',
+    className: 'bg-warn-tint text-warn border-warn/30',
   },
   processing: {
     label: t('podcasts.processingLabel'),
-    className: 'bg-amber-100 text-amber-800 border-amber-200',
+    className: 'bg-warn-tint text-warn border-warn/30',
   },
   completed: {
     label: t('podcasts.completedLabel'),
-    className: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    className: 'bg-fern-tint text-fern border-fern/30',
   },
   failed: {
     label: t('podcasts.failedLabel'),
-    className: 'bg-red-100 text-red-800 border-red-200',
+    className: 'bg-destructive-tint text-destructive border-destructive/30',
   },
   error: {
     label: t('podcasts.failedLabel'),
-    className: 'bg-red-100 text-red-800 border-red-200',
+    className: 'bg-destructive-tint text-destructive border-destructive/30',
   },
   pending: {
     label: t('podcasts.pendingLabel'),
-    className: 'bg-sky-100 text-sky-800 border-sky-200',
+    className: 'bg-teal-tint text-teal border-teal/30',
   },
   submitted: {
     label: t('podcasts.pendingLabel'),
-    className: 'bg-sky-100 text-sky-800 border-sky-200',
+    className: 'bg-teal-tint text-teal border-teal/30',
+  },
+  unknown: {
+    label: t('common.unknown'),
+    className: 'bg-muted text-muted-foreground border-transparent',
+  },
+})
+
+const getPIPELINE_STATUS_META = (t: TFunction): Record<
+  PipelineStatus | 'unknown',
+  { label: string; className: string }
+> => ({
+  drafting: {
+    label: t('podcasts.drafting'),
+    className: 'bg-warn-tint text-warn border-warn/30',
+  },
+  draft_ready: {
+    label: t('podcasts.draftReady'),
+    className: 'bg-teal-tint text-teal border-teal/30',
+  },
+  rendering: {
+    label: t('podcasts.rendering'),
+    className: 'bg-warn-tint text-warn border-warn/30',
+  },
+  completed: {
+    label: t('podcasts.completedLabel'),
+    className: 'bg-fern-tint text-fern border-fern/30',
+  },
+  failed: {
+    label: t('podcasts.failedLabel'),
+    className: 'bg-destructive-tint text-destructive border-destructive/30',
+  },
+  cancelled: {
+    label: t('podcasts.cancelled'),
+    className: 'bg-muted text-muted-foreground border-transparent',
   },
   unknown: {
     label: t('common.unknown'),
@@ -90,6 +129,23 @@ function StatusBadge({ status }: { status?: EpisodeStatus | null }) {
   }
 
   const meta = getSTATUS_META(t)[status ?? 'unknown']
+  return (
+    <Badge
+      variant="outline"
+      className={cn('uppercase tracking-wide text-xs', meta.className)}
+    >
+      {meta.label}
+    </Badge>
+  )
+}
+
+function PipelineStatusBadge({ status }: { status?: PipelineStatus | null }) {
+  const { t } = useTranslation()
+  if (!status || status === 'completed') {
+    return null
+  }
+
+  const meta = getPIPELINE_STATUS_META(t)[status ?? 'unknown']
   return (
     <Badge
       variant="outline"
@@ -153,11 +209,28 @@ function extractTranscriptEntries(transcript: unknown): TranscriptEntry[] {
   return []
 }
 
-export function EpisodeCard({ episode, onDelete, deleting, onRetry, retrying }: EpisodeCardProps) {
+export function EpisodeCard({
+  episode,
+  onDelete,
+  deleting,
+  onRetry,
+  retrying,
+  onApprove,
+  approving = false,
+  onCancel,
+  cancelling = false,
+}: EpisodeCardProps) {
   const { t, language } = useTranslation()
   const [audioSrc, setAudioSrc] = useState<string | undefined>()
   const [audioError, setAudioError] = useState<string | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const [draftReviewOpen, setDraftReviewOpen] = useState(false)
+  const [draftData, setDraftData] = useState<{
+    transcript: Record<string, unknown> | null
+    outline: Record<string, unknown> | null
+    briefing: string
+  } | null>(null)
+  const [draftLoading, setDraftLoading] = useState(false)
 
   const outlineSegments = useMemo(() => extractOutlineSegments(episode.outline), [episode.outline])
   const transcriptEntries = useMemo(() => extractTranscriptEntries(episode.transcript), [episode.transcript])
@@ -177,9 +250,10 @@ export function EpisodeCard({ episode, onDelete, deleting, onRetry, retrying }: 
       }
 
       try {
-        // apiClient attaches the auth header; directAudioUrl is absolute so
-        // the dynamic baseURL is ignored.
-        const response = await apiClient.get<Blob>(directAudioUrl, {
+        // Strip /api prefix — apiClient adds it via baseURL, and
+        // resolvePodcastAssetUrl already includes it in the path.
+        const apiPath = directAudioUrl.replace(/^\/api/, '') || '/'
+        const response = await apiClient.get<Blob>(apiPath, {
           responseType: 'blob',
         })
 
@@ -222,10 +296,42 @@ export function EpisodeCard({ episode, onDelete, deleting, onRetry, retrying }: 
     }
   }
 
+  const handleOpenDraftReview = useCallback(async () => {
+    setDraftLoading(true)
+    try {
+      const data = await podcastsApi.getDraft(episode.id)
+      setDraftData({
+        transcript: data.transcript,
+        outline: data.outline,
+        briefing: data.briefing,
+      })
+      setDraftReviewOpen(true)
+    } catch {
+      // Error handled by the dialog not opening
+    } finally {
+      setDraftLoading(false)
+    }
+  }, [episode.id])
+
+  const handleApprove = useCallback(() => {
+    if (onApprove) {
+      void onApprove(episode.id)
+    }
+    setDraftReviewOpen(false)
+  }, [episode.id, onApprove])
+
+  const handleCancelDraft = useCallback(() => {
+    if (onCancel) {
+      void onCancel(episode.id)
+    }
+    setDraftReviewOpen(false)
+  }, [episode.id, onCancel])
+
   const isFailed = FAILED_EPISODE_STATUSES.includes(episode.job_status as EpisodeStatus)
+  const isDraftReady = episode.pipeline_status === 'draft_ready'
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardContent className="space-y-4 p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
@@ -233,6 +339,7 @@ export function EpisodeCard({ episode, onDelete, deleting, onRetry, retrying }: 
               <h3 className="text-base font-semibold text-foreground">
                 {episode.name}
               </h3>
+              <PipelineStatusBadge status={episode.pipeline_status} />
               <StatusBadge status={episode.job_status} />
             </div>
             <p className="text-xs text-muted-foreground">
@@ -241,6 +348,17 @@ export function EpisodeCard({ episode, onDelete, deleting, onRetry, retrying }: 
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {isDraftReady && onApprove ? (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleOpenDraftReview}
+                disabled={draftLoading}
+              >
+                <Edit3 className="mr-2 h-4 w-4" />
+                {draftLoading ? t('common.loading') : t('podcasts.reviewDraft')}
+              </Button>
+            ) : null}
             <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm">
@@ -257,7 +375,9 @@ export function EpisodeCard({ episode, onDelete, deleting, onRetry, retrying }: 
                 </DialogHeader>
                 <div className="space-y-4 overflow-hidden">
                   {audioSrc ? (
-                    <audio controls preload="none" src={audioSrc} className="w-full" />
+                    <div className="rounded-md border bg-card p-2">
+                      <audio controls preload="none" src={audioSrc} className="w-full" />
+                    </div>
                   ) : audioError ? (
                     <p className="text-sm text-destructive">{audioError}</p>
                   ) : null}
@@ -392,6 +512,41 @@ export function EpisodeCard({ episode, onDelete, deleting, onRetry, retrying }: 
                 </div>
               </DialogContent>
             </Dialog>
+
+            {/* Draft Review Dialog */}
+            <Dialog open={draftReviewOpen} onOpenChange={setDraftReviewOpen}>
+              <DialogContent className="w-[min(90vw,720px)] max-h-[85vh] overflow-hidden">
+                <DialogHeader>
+                  <DialogTitle>{t('podcasts.reviewDraft')}</DialogTitle>
+                  <DialogDescription>
+                    {episode.name}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="overflow-hidden">
+                  {draftData ? (
+                    <DraftReview
+                      draft={{
+                        episode_id: episode.id,
+                        name: episode.name,
+                        pipeline_status: episode.pipeline_status ?? null,
+                        transcript: draftData.transcript,
+                        outline: draftData.outline,
+                        briefing: draftData.briefing,
+                      }}
+                      onApprove={handleApprove}
+                      onCancel={handleCancelDraft}
+                      approving={approving}
+                      cancelling={cancelling}
+                    />
+                  ) : (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      {t('common.loading')}
+                    </p>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+
             {isFailed && onRetry ? (
               <Button
                 variant="outline"
@@ -429,15 +584,17 @@ export function EpisodeCard({ episode, onDelete, deleting, onRetry, retrying }: 
         </div>
 
         {audioSrc ? (
-          <audio controls preload="none" src={audioSrc} className="w-full" />
+          <div className="rounded-md border bg-card p-2">
+            <audio controls preload="none" src={audioSrc} className="w-full" />
+          </div>
         ) : audioError ? (
           <p className="text-sm text-destructive">{audioError}</p>
         ) : null}
 
         {isFailed && episode.error_message ? (
-          <div className="rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/30">
-            <p className="text-xs font-medium text-red-800 dark:text-red-300">{t('podcasts.errorDetails')}</p>
-            <p className="mt-1 text-xs whitespace-pre-wrap text-red-700 dark:text-red-400">{episode.error_message}</p>
+          <div className="rounded-md border border-destructive/30 bg-destructive-tint p-3">
+            <p className="text-xs font-medium text-destructive">{t('podcasts.errorDetails')}</p>
+            <p className="mt-1 text-xs whitespace-pre-wrap text-destructive">{episode.error_message}</p>
           </div>
         ) : null}
       </CardContent>

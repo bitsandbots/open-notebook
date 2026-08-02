@@ -211,6 +211,13 @@ OPEN_NOTEBOOK_ENCRYPTION_KEY=my-secret-key
 - GPU acceleration
 - Docker networking
 
+### [Video Generation](video-setup.md)
+- Enabling video generation (`OPEN_NOTEBOOK_ENABLE_VIDEO`)
+- Playwright + Chromium installation
+- System requirements
+- Performance tuning
+- Troubleshooting render failures
+
 ### [Ollama](ollama.md)
 - Setting up and pointing to an Ollama server
 

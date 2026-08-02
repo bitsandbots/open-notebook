@@ -75,6 +75,14 @@ export interface Language {
   name: string
 }
 
+export type PipelineStatus =
+  | 'drafting'
+  | 'draft_ready'
+  | 'rendering'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+
 export interface PodcastEpisode {
   id: string
   name: string
@@ -88,6 +96,16 @@ export interface PodcastEpisode {
   created?: string | null
   job_status?: EpisodeStatus | null
   error_message?: string | null
+  pipeline_status?: PipelineStatus | null
+}
+
+export interface EpisodeDraft {
+  episode_id: string
+  name: string
+  pipeline_status: PipelineStatus | null
+  transcript: Record<string, unknown> | null
+  outline: Record<string, unknown> | null
+  briefing: string
 }
 
 export interface PodcastGenerationRequest {
@@ -108,7 +126,18 @@ export interface PodcastGenerationResponse {
   episode_name: string
 }
 
-export type EpisodeStatusGroup = 'running' | 'completed' | 'failed' | 'pending'
+export interface BriefProposalRequest {
+  content: string
+  episode_profile_name: string
+}
+
+export interface BriefProposalResponse {
+  language: string
+  num_segments: number
+  briefing: string
+}
+
+export type EpisodeStatusGroup = 'draft' | 'running' | 'completed' | 'failed' | 'pending'
 
 export type EpisodeStatusGroups = Record<EpisodeStatusGroup, PodcastEpisode[]>
 
@@ -124,6 +153,12 @@ export const FAILED_EPISODE_STATUSES: EpisodeStatus[] = ['failed', 'error']
 export function groupEpisodesByStatus(episodes: PodcastEpisode[]): EpisodeStatusGroups {
   return episodes.reduce<EpisodeStatusGroups>(
     (groups, episode) => {
+      // Draft-ready episodes get their own group regardless of job_status
+      if (episode.pipeline_status === 'draft_ready') {
+        groups.draft.push(episode)
+        return groups
+      }
+
       const status = episode.job_status || 'unknown'
 
       if (status === 'running' || status === 'processing') {
@@ -144,7 +179,7 @@ export function groupEpisodesByStatus(episodes: PodcastEpisode[]): EpisodeStatus
       groups.pending.push(episode)
       return groups
     },
-    { running: [], completed: [], failed: [], pending: [] }
+    { draft: [], running: [], completed: [], failed: [], pending: [] }
   )
 }
 

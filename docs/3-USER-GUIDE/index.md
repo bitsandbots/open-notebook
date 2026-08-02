@@ -13,7 +13,7 @@ Learn the layout before diving in. Understand the three-panel design and where e
 
 ---
 
-## Eight Core Features
+## Eleven Core Features
 
 ### 1. [Adding Sources](adding-sources.md)
 How to bring content into your notebook. Supports PDFs, web links, audio, video, text, and more.
@@ -54,18 +54,56 @@ Have conversations with AI about your sources. Manage context to control what AI
 ---
 
 ### 4. [Creating Podcasts](creating-podcasts.md)
-Convert your research into audio dialogue for passive consumption.
+Convert your research into audio dialogue for passive consumption. Two-phase generation: draft (review transcript) → render (synthesize audio).
 
 **Quick links:**
 - Create your first podcast
 - Choose or customize speakers
+- Preview TTS voices before rendering
+- Review and edit transcripts before audio generation
 - Select TTS provider
 - Generate and download
 - Common audio quality fixes
 
 ---
 
-### 5. [Search Effectively](search.md)
+### 5. [Creating Reports](creating-reports.md)
+Generate structured, exportable documents from notebook sources with versioning and section-level revision.
+
+**Quick links:**
+- Generate your first report
+- Edit and refine sections
+- Version reports as research evolves
+- Export to PDF, DOCX, HTML, EPUB, LaTeX, ODT, plain text
+- Regenerate individual sections
+
+---
+
+### 6. [Creating Presentations](creating-presentations.md)
+Generate structured slide decks with speaker notes, visual themes, and PowerPoint export.
+
+**Quick links:**
+- Generate your first presentation
+- Edit slides, reorder, customize themes
+- Write and refine speaker notes
+- Export to PPTX (PowerPoint/Google Slides/Keynote)
+- Present directly in-browser with hidden speaker notes
+
+---
+
+### 7. [Creating Videos](creating-videos.md)
+Generate narrated MP4 overviews with AI voiceover and styled slide visuals. Two-phase: draft review → render MP4.
+
+**Quick links:**
+- Enable video generation (opt-in)
+- Generate and review a draft
+- Edit narration text before rendering
+- Approve and render MP4
+- Stream or download the finished video
+
+---
+
+### 8. [Search Effectively](search.md)
 Two search modes: text-based (keyword) and vector-based (semantic). Know when to use each.
 
 **Quick links:**
@@ -77,7 +115,7 @@ Two search modes: text-based (keyword) and vector-based (semantic). Know when to
 
 ---
 
-### 6. [Transformations](transformations.md)
+### 9. [Transformations](transformations.md)
 Batch-process sources with predefined templates. Extract the same insights from multiple documents.
 
 **Quick links:**
@@ -88,7 +126,7 @@ Batch-process sources with predefined templates. Extract the same insights from 
 
 ---
 
-### 7. [Citations](citations.md)
+### 10. [Citations](citations.md)
 Verify AI claims by tracing them back to source material. Understand the citation system.
 
 **Quick links:**
@@ -99,7 +137,7 @@ Verify AI claims by tracing them back to source material. Understand the citatio
 
 ---
 
-### 8. [API Configuration](api-configuration.md)
+### 11. [API Configuration](api-configuration.md)
 Configure AI provider API keys directly through the Settings UI.
 
 **Quick links:**
@@ -128,6 +166,15 @@ Task: "I want summaries of all my sources"
 
 Task: "I want to share my research in audio form"
 → Use: Podcasts (create speakers, generate episode)
+
+Task: "I want a structured document from my research"
+→ Use: Reports (generate, review, export to PDF/DOCX/HTML/etc.)
+
+Task: "I need a slide deck for a presentation"
+→ Use: Presentations (generate slides with speaker notes, export PPTX)
+
+Task: "I want a narrated overview video"
+→ Use: Videos (generate draft, edit narration, render MP4)
 
 Task: "I want to find that quote I remember"
 → Use: Search / Text Search (keyword matching)

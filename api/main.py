@@ -38,6 +38,7 @@ from api.routers import (
     notes,
     podcasts,
     providers,
+    reports,
     search,
     settings,
     source_chat,
@@ -244,6 +245,7 @@ app.add_middleware(
         "/redoc",
         "/api/auth/status",
         "/api/config",
+        "/api/podcasts/episodes/*/audio",  # audio playback via <audio> element (no auth header)
     ],
 )
 
@@ -401,6 +403,7 @@ app.include_router(speaker_profiles.router, prefix="/api", tags=["speaker-profil
 app.include_router(chat.router, prefix="/api", tags=["chat"])
 app.include_router(source_chat.router, prefix="/api", tags=["source-chat"])
 app.include_router(credentials.router, prefix="/api", tags=["credentials"])
+app.include_router(reports.router, prefix="/api", tags=["reports"])
 app.include_router(providers.router, prefix="/api", tags=["providers"])
 app.include_router(capabilities.router, prefix="/api", tags=["capabilities"])
 app.include_router(languages.router, prefix="/api", tags=["languages"])

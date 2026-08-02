@@ -157,6 +157,44 @@ Audio files → Mix together → Final podcast MP3
 
 ---
 
+## The Generation Lifecycle
+
+Podcast generation is a two-phase process with explicit states you control:
+
+```
+DRAFTING → DRAFT_READY → RENDERING → COMPLETED
+                ↓                         ↓
+            CANCELLED                   FAILED
+```
+
+### Phase 1: Draft (DRAFTING → DRAFT_READY)
+
+The system generates the outline and transcript. No TTS audio yet — this phase is fast and lets you review before the expensive audio synthesis step.
+
+**What you get at draft:**
+- Complete transcript with speaker dialogue
+- Episode outline with segment structure
+- Ability to edit the transcript before rendering
+
+### Phase 2: Render (RENDERING → COMPLETED)
+
+After you approve the draft, the system generates TTS audio for each speaker and combines it into the final MP3.
+
+**Why two phases?** TTS is the most expensive and slowest part. By reviewing the transcript first, you avoid paying for TTS on content you'd want to revise. If a speaker's dialogue doesn't sound right, fix it before rendering — not after.
+
+### Voice Preview
+
+Before generating a full podcast, you can preview a TTS voice from the Speaker Profile editor:
+
+1. Open or create a Speaker Profile
+2. Next to the voice selection, click **Preview**
+3. A 5-second sample plays — "Hello, this is a preview."
+4. Try different voices until you find the right one
+
+This saves you from generating an entire episode only to discover the voice doesn't fit.
+
+---
+
 ## When Things Go Wrong: Failures & Retry
 
 Podcast generation involves multiple steps (outline, transcript, TTS) and depends on external AI providers. Sometimes things fail.
@@ -167,6 +205,7 @@ When podcast generation fails (e.g., wrong model configured, API key expired, pr
 
 - The episode is marked as **Failed** with a red badge
 - The **error message** from the AI provider is displayed so you can understand what went wrong
+- If the failure happened during drafting, the transcript is saved — you can see what was generated before the failure
 - No duplicate episodes are created — automatic retries are disabled to prevent confusion
 
 ### How to Retry a Failed Episode
@@ -175,7 +214,7 @@ When podcast generation fails (e.g., wrong model configured, API key expired, pr
 2. Find the failed episode — it shows a red "FAILED" badge and an error details box
 3. Click the **Retry** button
 4. The failed episode is deleted and a new generation job is submitted
-5. The new episode appears with "pending" status
+5. The new episode appears with "drafting" status
 
 ### Common Failure Causes
 

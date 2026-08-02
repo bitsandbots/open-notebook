@@ -192,7 +192,7 @@ Personality: Rigorous, academic but accessible
 Voice Model: ElevenLabs TTS (from registry), Voice: professional male
 ```
 
-### Step 6: Generate Podcast
+### Step 6: Generate and Review Draft
 
 ```
 1. Review your setup:
@@ -202,24 +202,55 @@ Voice Model: ElevenLabs TTS (from registry), Voice: professional male
 
 2. Click "Generate Podcast"
 
-3. System begins:
+3. System begins Phase 1 — Draft:
    - Analyzing your content
    - Creating outline
    - Writing dialogue
-   - Generating audio
-   - Mixing speakers
+   (No audio yet — this phase is fast)
 
-4. Status shows progress:
-   20% Outline generation
-   40% Dialogue writing
-   60% Audio synthesis
-   80% Mixing
-   100% Complete
+4. Status: "Drafting" → "Draft Ready"
 
-Processing time:
-- 5 minutes of content: 3-5 minutes
-- 15 minutes of content: 5-10 minutes
-- 30 minutes of content: 10-20 minutes
+Phase 1 time:
+- 5 minute podcast: 1-3 minutes
+- 15 minute podcast: 3-5 minutes
+- 30 minute podcast: 5-10 minutes
+
+5. When draft is ready:
+   - Review the transcript in the Draft Review panel
+   - Edit dialogue if needed (fix awkward phrases, add detail)
+   - Reorder segments if the flow doesn't work
+   - Preview speaker voices (click play next to any voice)
+
+6. Approve the draft → Phase 2 begins:
+   - Audio synthesis (TTS)
+   - Audio mixing and mastering
+   - Final MP3 output
+
+Phase 2 time:
+- 5 minute podcast: 2-5 minutes
+- 15 minute podcast: 5-10 minutes
+- 30 minute podcast: 10-20 minutes
+
+Total time: Phase 1 + Phase 2
+```
+
+### Step 6b: Preview Voices (Before Final Render)
+
+```
+Before approving the draft, you can test voices:
+
+1. In the Speaker Profile editor, click the 🔊 Preview button
+   next to any voice selection
+
+2. A short sample plays: "Hello, this is a preview."
+
+3. Try different voices from the same TTS model
+   or switch to a different TTS model entirely
+
+4. This saves you from generating an entire podcast
+   only to find the voice doesn't match your speakers
+
+Preview works with any configured TTS provider.
 ```
 
 ### Step 7: Review and Download

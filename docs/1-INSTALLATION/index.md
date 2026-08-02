@@ -130,6 +130,12 @@ Once you're up and running:
 4. **Explore Features** - Chat, search, transformations
 5. **Read Full Guide** - [User Guide](../3-USER-GUIDE/index.md)
 
+## Upgrading
+
+Already have Open Notebook installed? See the upgrade guide for moving to the latest version with deliverable studio features:
+
+**→ [Updating Open Notebook](updating.md)** — backup, pull latest image, enable new features, rollback instructions
+
 ---
 
 ## Troubleshooting During Installation

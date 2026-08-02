@@ -1,17 +1,18 @@
 'use client'
 
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Controller, useFieldArray, useForm } from 'react-hook-form'
 import type { FieldErrorsImpl } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, Trash2 } from 'lucide-react'
+import { Loader2, Plus, Trash2, Volume2 } from 'lucide-react'
 
 import { SpeakerProfile } from '@/lib/types/podcasts'
 import {
   useCreateSpeakerProfile,
   useUpdateSpeakerProfile,
 } from '@/lib/hooks/use-podcasts'
+import { podcastsApi } from '@/lib/api/podcasts'
 import {
   Dialog,
   DialogContent,
@@ -25,6 +26,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { ModelSelector } from '@/components/common/ModelSelector'
+import { useToast } from '@/lib/hooks/use-toast'
 
 import type { TFunction } from 'i18next'
 import { useTranslation } from '@/lib/hooks/use-translation'
@@ -71,8 +73,14 @@ export function SpeakerProfileFormDialog({
   initialData,
 }: SpeakerProfileFormDialogProps) {
   const { t } = useTranslation()
+  const { toast } = useToast()
   const createProfile = useCreateSpeakerProfile()
   const updateProfile = useUpdateSpeakerProfile()
+
+  // Voice preview state
+  const [previewingIndex, setPreviewingIndex] = useState<number | null>(null)
+  const [previewAudioUrl, setPreviewAudioUrl] = useState<string | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const getDefaults = useCallback((): SpeakerProfileFormValues => {
     if (initialData) {
@@ -100,6 +108,7 @@ export function SpeakerProfileFormDialog({
     register,
     handleSubmit,
     reset,
+    getValues,
     formState: { errors },
   } = useForm<SpeakerProfileFormValues>({
     resolver: zodResolver(speakerProfileSchema(t)),
@@ -148,6 +157,70 @@ export function SpeakerProfileFormDialog({
     onOpenChange(false)
   }
 
+  const handlePreviewVoice = useCallback(
+    async (index: number, voiceId: string, speakerVoiceModel: string | null) => {
+      // Resolve the voice model: per-speaker override first, then profile default
+      const profileVoiceModel = getValues('voice_model')
+      const voiceModelId = speakerVoiceModel || profileVoiceModel
+      if (!voiceModelId) {
+        toast({
+          title: t('podcasts.voicePreviewFailed'),
+          description: t('podcasts.voiceModelRequired'),
+          variant: 'destructive',
+        })
+        return
+      }
+      if (!voiceId.trim()) {
+        toast({
+          title: t('podcasts.voicePreviewFailed'),
+          description: t('podcasts.voiceIdRequired'),
+          variant: 'destructive',
+        })
+        return
+      }
+
+      setPreviewingIndex(index)
+      try {
+        // Revoke previous blob URL to avoid memory leaks
+        if (previewAudioUrl) {
+          URL.revokeObjectURL(previewAudioUrl)
+        }
+
+        const url = await podcastsApi.previewVoice({
+          voice_model_id: voiceModelId,
+          voice_id: voiceId.trim(),
+        })
+
+        setPreviewAudioUrl(url)
+
+        // Auto-play the preview
+        if (audioRef.current) {
+          audioRef.current.src = url
+          await audioRef.current.play()
+        }
+      } catch (error) {
+        console.error('Voice preview failed', error)
+        toast({
+          title: t('podcasts.voicePreviewFailed'),
+          description: t('podcasts.voicePreviewFailedDesc'),
+          variant: 'destructive',
+        })
+      } finally {
+        setPreviewingIndex(null)
+      }
+    },
+    [previewAudioUrl, toast, t]
+  )
+
+  // Cleanup blob URL on unmount
+  useEffect(() => {
+    return () => {
+      if (previewAudioUrl) {
+        URL.revokeObjectURL(previewAudioUrl)
+      }
+    }
+  }, [previewAudioUrl])
+
   const isSubmitting = createProfile.isPending || updateProfile.isPending
   const disableSubmit = isSubmitting
   const isEdit = mode === 'edit'
@@ -170,7 +243,7 @@ export function SpeakerProfileFormDialog({
               <Label htmlFor="name">{t('podcasts.profileName')} *</Label>
               <Input id="name" placeholder={t('podcasts.profileNamePlaceholder')} {...register('name')} />
               {errors.name ? (
-                <p className="text-xs text-red-600">{errors.name.message}</p>
+                <p className="text-xs text-destructive">{errors.name.message}</p>
               ) : null}
             </div>
 
@@ -205,7 +278,7 @@ export function SpeakerProfileFormDialog({
                     placeholder={t('podcasts.selectVoiceModel')}
                   />
                   {errors.voice_model ? (
-                    <p className="text-xs text-red-600 mt-1">
+                    <p className="text-xs text-destructive mt-1">
                       {errors.voice_model.message}
                     </p>
                   ) : null}
@@ -263,21 +336,44 @@ export function SpeakerProfileFormDialog({
                       autoComplete="off"
                     />
                     {errors.speakers?.[index]?.name ? (
-                      <p className="text-xs text-red-600">
+                      <p className="text-xs text-destructive">
                         {errors.speakers[index]?.name?.message}
                       </p>
                     ) : null}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor={`speaker-voice-${index}`}>{t('podcasts.voiceId')} *</Label>
-                    <Input
-                      id={`speaker-voice-${index}`}
-                      {...register(`speakers.${index}.voice_id` as const)}
-                      placeholder="voice_123"
-                      autoComplete="off"
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        id={`speaker-voice-${index}`}
+                        {...register(`speakers.${index}.voice_id` as const)}
+                        placeholder="voice_123"
+                        autoComplete="off"
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={previewingIndex !== null}
+                        onClick={() => {
+                          const voiceId = getValues(`speakers.${index}.voice_id` as any) as string
+                          const speakerVoiceModel = getValues(`speakers.${index}.voice_model` as any) as string | null
+                          handlePreviewVoice(index, voiceId || '', speakerVoiceModel)
+                        }}
+                      >
+                        {previewingIndex === index ? (
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        ) : (
+                          <Volume2 className="mr-1 h-3 w-3" />
+                        )}
+                        {previewingIndex === index
+                          ? t('podcasts.previewingVoice')
+                          : t('podcasts.previewVoice')}
+                      </Button>
+                    </div>
                     {errors.speakers?.[index]?.voice_id ? (
-                      <p className="text-xs text-red-600">
+                      <p className="text-xs text-destructive">
                         {errors.speakers[index]?.voice_id?.message}
                       </p>
                     ) : null}
@@ -293,7 +389,7 @@ export function SpeakerProfileFormDialog({
                     autoComplete="off"
                   />
                   {errors.speakers?.[index]?.backstory ? (
-                    <p className="text-xs text-red-600">
+                    <p className="text-xs text-destructive">
                       {errors.speakers[index]?.backstory?.message}
                     </p>
                   ) : null}
@@ -308,7 +404,7 @@ export function SpeakerProfileFormDialog({
                     autoComplete="off"
                   />
                   {errors.speakers?.[index]?.personality ? (
-                    <p className="text-xs text-red-600">
+                    <p className="text-xs text-destructive">
                       {errors.speakers[index]?.personality?.message}
                     </p>
                   ) : null}
@@ -332,7 +428,7 @@ export function SpeakerProfileFormDialog({
             ))}
 
             {speakersArrayError ? (
-              <p className="text-xs text-red-600">{speakersArrayError}</p>
+              <p className="text-xs text-destructive">{speakersArrayError}</p>
             ) : null}
           </div>
 
@@ -353,6 +449,9 @@ export function SpeakerProfileFormDialog({
             </Button>
           </div>
         </form>
+
+        {/* Hidden audio element for voice preview playback */}
+        <audio ref={audioRef} className="hidden" />
       </DialogContent>
     </Dialog>
   )
