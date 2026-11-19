@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { LoaderIcon, BookOpen, Check } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -106,57 +105,47 @@ export function NotebookAssociations({
 
   if (isLoading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5" />
-            {t('sources.manageNotebooks')}
-          </CardTitle>
-          <CardDescription>
-            {t('sources.manageNotebooksDesc')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center py-8">
-            <LoaderIcon className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        </CardContent>
-      </Card>
+      <section className="mt-6 border-t border-border pt-5">
+        <h3 className="flex items-center gap-2 text-[15.5px] font-medium">
+          <BookOpen className="h-4 w-4" />
+          {t('sources.manageNotebooks')}
+        </h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {t('sources.manageNotebooksDesc')}
+        </p>
+        <div className="flex items-center justify-center py-8">
+          <LoaderIcon className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </section>
     )
   }
 
   if (!notebooks || notebooks.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5" />
-            {t('sources.manageNotebooks')}
-          </CardTitle>
-          <CardDescription>
-            {t('sources.manageNotebooksDesc')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">{t('sources.noNotebooksAvailable')}</p>
-        </CardContent>
-      </Card>
+      <section className="mt-6 border-t border-border pt-5">
+        <h3 className="flex items-center gap-2 text-[15.5px] font-medium">
+          <BookOpen className="h-4 w-4" />
+          {t('sources.manageNotebooks')}
+        </h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {t('sources.manageNotebooksDesc')}
+        </p>
+        <p className="mt-4 text-sm text-muted-foreground">{t('sources.noNotebooksAvailable')}</p>
+      </section>
     )
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <BookOpen className="h-5 w-5" />
-          {t('sources.manageNotebooks')}
-        </CardTitle>
-        <CardDescription>
-          {t('sources.manageNotebooksDesc')}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <ScrollArea className="h-[300px] border rounded-md p-4">
+    <section className="mt-6 border-t border-border pt-5">
+      <h3 className="flex items-center gap-2 text-[15.5px] font-medium">
+        <BookOpen className="h-4 w-4" />
+        {t('sources.manageNotebooks')}
+      </h3>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {t('sources.manageNotebooksDesc')}
+      </p>
+      <div className="mt-4 space-y-4">
+        <ScrollArea className="h-[300px] border rounded-md p-4 [&_[data-radix-scroll-area-viewport]>div]:!block">
           <div className="space-y-3">
             {notebooks
               .filter(nb => !nb.archived)
@@ -167,14 +156,15 @@ export function NotebookAssociations({
                 return (
                   <div
                     key={notebook.id}
-                    className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
-                      isSelected ? 'bg-accent border-accent-foreground/20' : 'hover:bg-accent/50'
+                    className={`flex items-start gap-3 p-3 rounded-md transition-colors ${
+                      isSelected ? 'bg-accent' : 'hover:bg-accent/50'
                     }`}
                   >
                     <Checkbox
                       checked={isSelected}
                       onCheckedChange={() => handleToggleNotebook(notebook.id)}
                       className="mt-0.5"
+                      aria-label={notebook.name}
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -182,7 +172,7 @@ export function NotebookAssociations({
                           {notebook.name}
                         </h4>
                         {isCurrentlyLinked && !hasChanges && (
-                          <Check className="h-4 w-4 text-green-600" />
+                          <Check className="h-4 w-4 text-fern" />
                         )}
                       </div>
                       {notebook.description && (
@@ -223,7 +213,7 @@ export function NotebookAssociations({
             </Button>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   )
 }

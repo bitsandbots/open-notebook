@@ -104,15 +104,25 @@ PROVIDER_PRIORITY = [
     "minimax",
 ]
 
-# Model preference patterns (preferred models within each provider)
+# Model preference patterns (preferred models within each provider).
+# Entries are case-insensitive substrings matched in order: the first
+# pattern that matches a registered model wins. Older families stay last
+# so providers that only expose legacy models keep a sensible default.
 MODEL_PREFERENCES = {
-    "openai": ["gpt-4o", "gpt-4", "gpt-3.5-turbo"],
-    "anthropic": ["claude-3-5-sonnet", "claude-3-opus", "claude-3-sonnet"],
+    "openai": ["gpt-5-mini", "gpt-5", "gpt-4.1", "gpt-4o", "gpt-4", "gpt-3.5-turbo"],
+    "anthropic": [
+        "claude-sonnet",
+        "claude-haiku",
+        "claude-opus",
+        "claude-3-5-sonnet",
+        "claude-3-opus",
+        "claude-3-sonnet",
+    ],
     "google": ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.5-pro"],
-    "mistral": ["mistral-large", "mixtral"],
+    "mistral": ["mistral-medium", "mistral-large", "mixtral"],
     "groq": ["llama-3.3", "llama-3.1", "mixtral"],
     "dashscope": ["qwen-max", "qwen-plus", "qwen-turbo"],
-    "minimax": ["MiniMax-M2.5", "MiniMax-M2.5-highspeed"],
+    "minimax": ["MiniMax-M3", "MiniMax-M2.5", "MiniMax-M2.5-highspeed"],
 }
 
 
@@ -409,6 +419,8 @@ async def get_provider_availability():
             "dashscope": "DASHSCOPE_API_KEY",
             "minimax": "MINIMAX_API_KEY",
             "novita": "NOVITA_API_KEY",
+            "siliconflow": "SILICONFLOW_API_KEY",
+            "zai": "ZAI_API_KEY",
             "ppq": "PPQ_API_KEY",
             "cohere": "COHERE_API_KEY",
         }
@@ -448,12 +460,11 @@ async def get_provider_availability():
             or _check_openai_compatible_support("STT")
             or _check_openai_compatible_support("TTS")
         )
-        provider_status["anthropic_compatible"] = (
-            await _check_provider_has_credential("anthropic_compatible")
-            or (
-                bool((os.environ.get("ANTHROPIC_COMPATIBLE_BASE_URL") or "").strip())
-                and bool((os.environ.get("ANTHROPIC_COMPATIBLE_API_KEY") or "").strip())
-            )
+        provider_status["anthropic_compatible"] = await _check_provider_has_credential(
+            "anthropic_compatible"
+        ) or (
+            bool((os.environ.get("ANTHROPIC_COMPATIBLE_BASE_URL") or "").strip())
+            and bool((os.environ.get("ANTHROPIC_COMPATIBLE_API_KEY") or "").strip())
         )
 
         available_providers = [k for k, v in provider_status.items() if v]
@@ -531,9 +542,7 @@ async def get_provider_availability():
 # =============================================================================
 
 
-@router.get(
-    "/models/discover/{provider}", response_model=List[DiscoveredModelResponse]
-)
+@router.get("/models/discover/{provider}", response_model=List[DiscoveredModelResponse])
 async def discover_models(provider: str):
     """
     Discover available models from a provider without registering them.
@@ -562,7 +571,8 @@ async def discover_models(provider: str):
     except Exception as e:
         logger.error(f"Error discovering models for {provider}: {str(e)}")
         raise HTTPException(
-            status_code=500, detail="Error discovering models. Check server logs for details."
+            status_code=500,
+            detail="Error discovering models. Check server logs for details.",
         )
 
 
@@ -594,7 +604,10 @@ async def sync_models(provider: str):
         raise
     except Exception as e:
         logger.error(f"Error syncing models for {provider}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error syncing models. Check server logs for details.")
+        raise HTTPException(
+            status_code=500,
+            detail="Error syncing models. Check server logs for details.",
+        )
 
 
 @router.post("/models/sync", response_model=AllProvidersSyncResponse)
@@ -699,9 +712,7 @@ async def get_models_by_provider(provider: str):
         raise
     except Exception as e:
         logger.error(f"Error fetching models for {provider}: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Error fetching models: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error fetching models: {str(e)}")
 
 
 def _get_preferred_model(
@@ -792,9 +803,12 @@ async def auto_assign_defaults():
         #
         # Only REQUIRED slots are auto-assigned. Optional slots
         # (transformation, tools, large_context, TTS, STT) are intentionally
-        # left untouched: they fall back to the chat model when empty, so an
-        # empty optional slot may be a deliberate user choice (see #1097/#1098).
-        # Re-populating them here would silently undo that intent.
+        # left untouched: transformation, tools and large_context fall back to
+        # the chat model when empty; with an empty TTS slot, podcasts can only
+        # use speaker profiles that have their own voice model (#1467), and an
+        # empty STT slot means no default transcription model. Either way an
+        # empty optional slot may be a deliberate user choice (see #1097/#1098),
+        # so re-populating them here would silently undo that intent.
         required_slot_configs = [
             ("default_chat_model", "language", defaults.default_chat_model),  # type: ignore[attr-defined]
             ("default_embedding_model", "embedding", defaults.default_embedding_model),  # type: ignore[attr-defined]

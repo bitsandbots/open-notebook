@@ -463,7 +463,9 @@ class TestUpdateDefaultModels:
 
     def test_absent_field_keeps_current_value(self, client):
         defaults = self._mock_defaults()
-        response = self._put(client, defaults, {"default_tools_model": "model:new-tools"})
+        response = self._put(
+            client, defaults, {"default_tools_model": "model:new-tools"}
+        )
 
         assert response.status_code == 200
         assert defaults.default_tools_model == "model:new-tools"
@@ -512,19 +514,42 @@ class TestAutoAssignDefaults:
 
     def _models(self):
         return [
-            {"id": "model:lang", "provider": "openai", "name": "gpt-4o", "type": "language"},
-            {"id": "model:embed", "provider": "openai", "name": "text-embedding-3", "type": "embedding"},
-            {"id": "model:tts", "provider": "openai", "name": "tts-1", "type": "text_to_speech"},
-            {"id": "model:stt", "provider": "openai", "name": "whisper-1", "type": "speech_to_text"},
+            {
+                "id": "model:lang",
+                "provider": "openai",
+                "name": "gpt-4o",
+                "type": "language",
+            },
+            {
+                "id": "model:embed",
+                "provider": "openai",
+                "name": "text-embedding-3",
+                "type": "embedding",
+            },
+            {
+                "id": "model:tts",
+                "provider": "openai",
+                "name": "tts-1",
+                "type": "text_to_speech",
+            },
+            {
+                "id": "model:stt",
+                "provider": "openai",
+                "name": "whisper-1",
+                "type": "speech_to_text",
+            },
         ]
 
     def _post(self, client, defaults):
-        with patch(
-            "api.routers.models.DefaultModels.get_instance",
-            new=AsyncMock(return_value=defaults),
-        ), patch(
-            "open_notebook.database.repository.repo_query",
-            new=AsyncMock(return_value=self._models()),
+        with (
+            patch(
+                "api.routers.models.DefaultModels.get_instance",
+                new=AsyncMock(return_value=defaults),
+            ),
+            patch(
+                "open_notebook.database.repository.repo_query",
+                new=AsyncMock(return_value=self._models()),
+            ),
         ):
             return client.post("/api/models/auto-assign")
 
@@ -564,6 +589,93 @@ class TestAutoAssignDefaults:
         assert body["assigned"]["default_embedding_model"] == "model:embed"
 
 
+class TestGetPreferredModel:
+    """_get_preferred_model must match the real preference table as
+    case-insensitive substrings, newest family first (#1473).
+    """
+
+    def _select(self, models):
+        from api.routers.models import (
+            MODEL_PREFERENCES,
+            PROVIDER_PRIORITY,
+            _get_preferred_model,
+        )
+
+        return _get_preferred_model(models, PROVIDER_PRIORITY, MODEL_PREFERENCES)
+
+    def test_openai_prefers_gpt_5_over_gpt_4o_mini(self):
+        models = [
+            {"id": "model:4o-mini", "provider": "openai", "name": "gpt-4o-mini"},
+            {"id": "model:5", "provider": "openai", "name": "gpt-5"},
+        ]
+
+        selected = self._select(models)
+
+        assert selected is not None
+        assert selected["name"] == "gpt-5"
+
+    def test_openai_prefers_gpt_5_mini_when_registered(self):
+        models = [
+            {"id": "model:4o-mini", "provider": "openai", "name": "gpt-4o-mini"},
+            {"id": "model:5-mini", "provider": "openai", "name": "gpt-5-mini"},
+            {"id": "model:5", "provider": "openai", "name": "gpt-5"},
+        ]
+
+        selected = self._select(models)
+
+        assert selected is not None
+        assert selected["name"] == "gpt-5-mini"
+
+    @pytest.mark.parametrize("reverse", [False, True])
+    def test_anthropic_prefers_sonnet_regardless_of_registration_order(self, reverse):
+        models = [
+            {
+                "id": "model:sonnet",
+                "provider": "anthropic",
+                "name": "claude-sonnet-5-5",
+            },
+            {
+                "id": "model:haiku",
+                "provider": "anthropic",
+                "name": "claude-haiku-5-5",
+            },
+        ]
+        if reverse:
+            models.reverse()
+
+        selected = self._select(models)
+
+        assert selected is not None
+        assert selected["name"] == "claude-sonnet-5-5"
+
+    def test_mistral_prefers_medium_over_large(self):
+        models = [
+            {"id": "model:mixtral", "provider": "mistral", "name": "mixtral-8x7b"},
+            {
+                "id": "model:large",
+                "provider": "mistral",
+                "name": "mistral-large-latest",
+            },
+            {"id": "model:medium", "provider": "mistral", "name": "mistral-medium-3"},
+        ]
+
+        selected = self._select(models)
+
+        assert selected is not None
+        assert selected["name"] == "mistral-medium-3"
+
+    def test_legacy_patterns_remain_after_current_families(self):
+        models = [
+            {"id": "model:3.5", "provider": "openai", "name": "gpt-3.5-turbo"},
+            {"id": "model:4", "provider": "openai", "name": "gpt-4-turbo"},
+        ]
+
+        selected = self._select(models)
+
+        assert selected is not None
+        assert selected["name"] == "gpt-4-turbo"
+
+
 class TestGetDefaultModelFallback:
     """get_default_model must fall back to the chat model for the three text
     optional slots (transformation, tools, large_context) when unset (#1098).
@@ -583,18 +695,19 @@ class TestGetDefaultModelFallback:
         return defaults
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        "model_type", ["transformation", "tools", "large_context"]
-    )
+    @pytest.mark.parametrize("model_type", ["transformation", "tools", "large_context"])
     async def test_text_optional_slots_fall_back_to_chat(self, model_type):
         from open_notebook.ai.models import model_manager
 
         defaults = self._defaults()
-        with patch.object(
-            model_manager, "get_defaults", new=AsyncMock(return_value=defaults)
-        ), patch.object(
-            model_manager, "get_model", new=AsyncMock(return_value="chat-model-obj")
-        ) as mock_get_model:
+        with (
+            patch.object(
+                model_manager, "get_defaults", new=AsyncMock(return_value=defaults)
+            ),
+            patch.object(
+                model_manager, "get_model", new=AsyncMock(return_value="chat-model-obj")
+            ) as mock_get_model,
+        ):
             result = await model_manager.get_default_model(model_type)
 
         assert result == "chat-model-obj"
@@ -607,11 +720,14 @@ class TestGetDefaultModelFallback:
         from open_notebook.ai.models import model_manager
 
         defaults = self._defaults()
-        with patch.object(
-            model_manager, "get_defaults", new=AsyncMock(return_value=defaults)
-        ), patch.object(
-            model_manager, "get_model", new=AsyncMock(return_value="obj")
-        ) as mock_get_model:
+        with (
+            patch.object(
+                model_manager, "get_defaults", new=AsyncMock(return_value=defaults)
+            ),
+            patch.object(
+                model_manager, "get_model", new=AsyncMock(return_value="obj")
+            ) as mock_get_model,
+        ):
             tts = await model_manager.get_default_model("text_to_speech")
             stt = await model_manager.get_default_model("speech_to_text")
 

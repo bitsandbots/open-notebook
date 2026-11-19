@@ -159,12 +159,15 @@ export function SourcesColumn({
         <Card className="h-full flex flex-col flex-1 overflow-hidden">
           <CardHeader className="pb-3 flex-shrink-0">
             <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-lg">{t('navigation.sources')}</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.13em] text-muted-foreground">
+                <span aria-hidden className="h-3.5 w-[3px] rounded-full bg-sage" />
+                {t('navigation.sources')}
+              </CardTitle>
               <div className="flex items-center gap-2">
                 {onBulkContextModeChange && sources && sources.length > 0 && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" title={t('sources.bulkContext')}>
+                      <Button variant="ghost" size="sm" className="text-muted-foreground" title={t('sources.bulkContext')}>
                         <ListChecks className="h-4 w-4" />
                         <ChevronDown className="h-4 w-4 ml-1" />
                       </Button>
@@ -184,7 +187,7 @@ export function SourcesColumn({
                 )}
                 <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
                   <DropdownMenuTrigger asChild>
-                    <Button size="sm">
+                    <Button size="sm" className="shrink-0 whitespace-nowrap">
                       <Plus className="h-4 w-4 mr-2" />
                       {t('sources.addSource')}
                       <ChevronDown className="h-4 w-4 ml-2" />
@@ -218,7 +221,7 @@ export function SourcesColumn({
                 description={t('sources.createFirstSource')}
               />
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {sources.map((source) => (
                   <SourceCard
                     key={source.id}
@@ -230,7 +233,7 @@ export function SourcesColumn({
                     onRemoveFromNotebook={handleRemoveFromNotebook}
                     onRefresh={onRefresh}
                     showRemoveFromNotebook={true}
-                    contextMode={contextSelections?.[source.id]}
+                    contextMode={contextSelections?.[source.id] ?? 'off'}
                     onContextModeChange={onContextModeChange
                       ? (mode) => onContextModeChange(source.id, mode)
                       : undefined

@@ -21,6 +21,7 @@ import { sourcesApi } from '@/lib/api/sources'
 import { useSources, useAddSourcesToNotebook } from '@/lib/hooks/use-sources'
 import { SourceListResponse } from '@/lib/types/api'
 import { useTranslation } from '@/lib/hooks/use-translation'
+import { formatDate as formatLocalizedDate } from '@/lib/utils/date-locale'
 
 interface AddExistingSourceDialogProps {
   open: boolean
@@ -35,7 +36,7 @@ export function AddExistingSourceDialog({
   notebookId,
   onSuccess,
 }: AddExistingSourceDialogProps) {
-  const { t } = useTranslation()
+  const { t, language } = useTranslation()
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearchQuery] = useDebounce(searchQuery, 300)
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([])
@@ -91,9 +92,12 @@ export function AddExistingSourceDialog({
         minimum_score: 0.01,
       })
 
-      // Since we set search_sources=true and search_notes=false,
-      // the API only returns sources, no need to filter
-      const sources = response.results.map(r => ({
+      const sourceIds = new Set<string>()
+      const sources = response.results.filter(r => {
+        if (sourceIds.has(r.parent_id)) return false
+        sourceIds.add(r.parent_id)
+        return true
+      }).map(r => ({
         id: r.parent_id,
         title: r.title || 'Untitled',
         topics: [],
@@ -172,13 +176,7 @@ export function AddExistingSourceDialog({
     return <FileText className="h-4 w-4" />
   }
 
-  const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString()
-    } catch {
-      return ''
-    }
-  }
+  const formatDate = (dateString: string) => formatLocalizedDate(dateString, language)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -229,8 +227,8 @@ export function AddExistingSourceDialog({
                   return (
                     <div
                       key={source.id}
-                      className={`flex items-start gap-3 p-3 rounded-lg border transition-colors min-w-0 ${
-                        isSelected ? 'bg-accent border-accent-foreground/20' : 'hover:bg-accent/50'
+                      className={`flex items-start gap-3 p-3 rounded-md transition-colors min-w-0 ${
+                        isSelected ? 'bg-accent' : 'hover:bg-accent/50'
                       }`}
                     >
                       <Checkbox
@@ -266,9 +264,9 @@ export function AddExistingSourceDialog({
 
           {/* Truncation Warning */}
           {allSources.length >= 100 && !debouncedSearchQuery && (
-            <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded-md">
+            <p className="text-xs text-muted-foreground">
               {t('sources.showingFirst100')}
-            </div>
+            </p>
           )}
 
           {/* Selection Summary */}

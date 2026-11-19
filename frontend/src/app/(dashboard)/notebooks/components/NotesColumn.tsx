@@ -16,6 +16,7 @@ import { EmptyState } from '@/components/common/EmptyState'
 import { Badge } from '@/components/ui/badge'
 import { NoteEditorDialog } from './NoteEditorDialog'
 import { getDateLocale } from '@/lib/utils/date-locale'
+import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
 import { ContextToggle } from '@/components/common/ContextToggle'
 import type { NoteContextMode } from '../[id]/page'
@@ -44,8 +45,8 @@ export function NotesColumn({
   onBulkContextModeChange
 }: NotesColumnProps) {
   const { t, language } = useTranslation()
-  const [showAddDialog, setShowAddDialog] = useState(false)
-  const [editingNote, setEditingNote] = useState<NoteResponse | null>(null)
+  const [editorOpen, setEditorOpen] = useState(false)
+  const [editingNote, setEditingNote] = useState<NoteResponse | undefined>()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null)
 
@@ -62,6 +63,11 @@ export function NotesColumn({
   const handleDeleteClick = (noteId: string) => {
     setNoteToDelete(noteId)
     setDeleteDialogOpen(true)
+  }
+
+  const handleOpenEditor = (note?: NoteResponse) => {
+    setEditingNote(note)
+    setEditorOpen(true)
   }
 
   const handleDeleteConfirm = async () => {
@@ -87,12 +93,15 @@ export function NotesColumn({
         <Card className="h-full flex flex-col flex-1 overflow-hidden">
           <CardHeader className="pb-3 flex-shrink-0">
             <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-lg">{notesLabel}</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.13em] text-muted-foreground">
+                <span aria-hidden className="h-3.5 w-[3px] rounded-full bg-gold" />
+                {notesLabel}
+              </CardTitle>
               <div className="flex items-center gap-2">
                 {onBulkContextModeChange && notes && notes.length > 0 && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" title={t('sources.bulkContext')}>
+                      <Button variant="ghost" size="sm" className="text-muted-foreground" title={t('sources.bulkContext')}>
                         <ListChecks className="h-4 w-4" />
                         <ChevronDown className="h-4 w-4 ml-1" />
                       </Button>
@@ -107,13 +116,7 @@ export function NotesColumn({
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setEditingNote(null)
-                    setShowAddDialog(true)
-                  }}
-                >
+                <Button size="sm" onClick={() => handleOpenEditor()}>
                   <Plus className="h-4 w-4 mr-2" />
                   {t('common.writeNote')}
                 </Button>
@@ -134,17 +137,17 @@ export function NotesColumn({
                 description={t('sources.createFirstNote')}
               />
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {notes.map((note) => (
                   <div
                     key={note.id}
-                    className="p-3 border rounded-lg card-hover group relative cursor-pointer"
-                    onClick={() => setEditingNote(note)}
+                    className="p-3 border rounded-md bg-card shadow-none card-hover group relative cursor-pointer"
+                    onClick={() => handleOpenEditor(note)}
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2">
                         {note.note_type === 'ai' ? (
-                          <Bot className="h-4 w-4 text-primary" />
+                          <Bot className="h-4 w-4 text-teal" />
                         ) : (
                           <User className="h-4 w-4 text-muted-foreground" />
                         )}
@@ -178,8 +181,9 @@ export function NotesColumn({
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                               onClick={(e) => e.stopPropagation()}
+                              aria-label={t('common.actions')}
                             >
                               <MoreVertical className="h-4 w-4" />
                             </Button>
@@ -190,7 +194,7 @@ export function NotesColumn({
                                 e.stopPropagation()
                                 handleDeleteClick(note.id)
                               }}
-                              className="text-red-600 focus:text-red-600"
+                              className="text-destructive focus:text-destructive"
                             >
                               <Trash2 className="h-4 w-4 mr-2" />
                               {t('notebooks.deleteNote')}
@@ -200,9 +204,9 @@ export function NotesColumn({
                       </div>
                     </div>
 
-                    {note.title && (
-                      <h4 className="text-sm font-medium mb-2 break-all">{note.title}</h4>
-                    )}
+                    <h4 className={cn('text-sm font-medium mb-2 break-all', !note.title && 'text-muted-foreground')}>
+                      {note.title || t('sources.untitledNote')}
+                    </h4>
 
                     {note.content && (
                       <p className="text-sm text-muted-foreground line-clamp-3 break-all">
@@ -218,17 +222,15 @@ export function NotesColumn({
       </CollapsibleColumn>
 
       <NoteEditorDialog
-        open={showAddDialog || Boolean(editingNote)}
+        open={editorOpen}
         onOpenChange={(open) => {
+          setEditorOpen(open)
           if (!open) {
-            setShowAddDialog(false)
-            setEditingNote(null)
-          } else {
-            setShowAddDialog(true)
+            setEditingNote(undefined)
           }
         }}
         notebookId={notebookId}
-        note={editingNote ?? undefined}
+        note={editingNote}
       />
 
       <ConfirmDialog

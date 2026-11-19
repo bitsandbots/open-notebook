@@ -19,9 +19,10 @@ import {
 import { embeddingApi } from '@/lib/api/embedding'
 import type { RebuildEmbeddingsRequest, RebuildStatusResponse } from '@/lib/api/embedding'
 import { useTranslation } from '@/lib/hooks/use-translation'
+import { formatDateTime } from '@/lib/utils/date-locale'
 
 export function RebuildEmbeddings() {
-  const { t } = useTranslation()
+  const { t, language } = useTranslation()
   const [mode, setMode] = useState<'existing' | 'all'>('existing')
   const [includeSources, setIncludeSources] = useState(true)
   const [includeNotes, setIncludeNotes] = useState(true)
@@ -226,10 +227,10 @@ export function RebuildEmbeddings() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                {status.status === 'queued' && <Clock className="h-5 w-5 text-yellow-500" />}
-                {status.status === 'running' && <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />}
-                {status.status === 'completed' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
-                {status.status === 'failed' && <XCircle className="h-5 w-5 text-red-500" />}
+                {status.status === 'queued' && <Clock className="h-5 w-5 text-warn" />}
+                {status.status === 'running' && <Loader2 className="h-5 w-5 text-teal animate-spin" />}
+                {status.status === 'completed' && <CheckCircle2 className="h-5 w-5 text-fern" />}
+                {status.status === 'failed' && <XCircle className="h-5 w-5 text-destructive" />}
                 <div className="flex flex-col">
                   <span className="font-medium">
                     {status.status === 'queued' && t('advanced.rebuild.queued')}
@@ -261,7 +262,7 @@ export function RebuildEmbeddings() {
                 </div>
                 <Progress value={progressPercent} className="h-2" />
                 {failedItems > 0 && (
-                  <p className="text-sm text-yellow-600">
+                  <p className="text-sm text-warn">
                     ⚠️ {t('advanced.rebuild.failedItems', { count: failedItems })}
                   </p>
                 )}
@@ -272,19 +273,19 @@ export function RebuildEmbeddings() {
               <div className="grid grid-cols-4 gap-4">
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">{t('navigation.sources')}</p>
-                  <p className="text-2xl font-bold">{sourcesProcessed}</p>
+                  <p className="font-mono text-2xl font-bold">{sourcesProcessed}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">{t('common.notes')}</p>
-                  <p className="text-2xl font-bold">{notesProcessed}</p>
+                  <p className="font-mono text-2xl font-bold">{notesProcessed}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">{t('common.insights')}</p>
-                  <p className="text-2xl font-bold">{insightsProcessed}</p>
+                  <p className="font-mono text-2xl font-bold">{insightsProcessed}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">{t('advanced.rebuild.time')}</p>
-                  <p className="text-2xl font-bold">
+                  <p className="font-mono text-2xl font-bold">
                     {processingTimeSeconds !== undefined ? `${processingTimeSeconds.toFixed(1)}s` : '—'}
                   </p>
                 </div>
@@ -300,9 +301,9 @@ export function RebuildEmbeddings() {
 
             {status.started_at && (
               <div className="text-sm text-muted-foreground space-y-1">
-                <p>{t('common.created', { time: new Date(status.started_at).toLocaleString() })}</p>
+                <p>{t('common.created', { time: formatDateTime(status.started_at, language) })}</p>
                 {status.completed_at && (
-                  <p>{t('notebooks.updated')}: {new Date(status.completed_at).toLocaleString()}</p>
+                  <p>{t('notebooks.updated')}: {formatDateTime(status.completed_at, language)}</p>
                 )}
               </div>
             )}

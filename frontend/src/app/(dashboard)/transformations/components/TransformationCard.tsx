@@ -70,7 +70,7 @@ export function TransformationCard({ transformation, onPlayground, onEdit }: Tra
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-red-600 hover:text-red-700"
+                  className="text-destructive hover:text-destructive"
                   onClick={() => setShowDeleteDialog(true)}
                 >
                   <Trash2 className="h-4 w-4" />
@@ -107,7 +107,7 @@ export function TransformationCard({ transformation, onPlayground, onEdit }: Tra
       <ConfirmDialog
         open={showDeleteDialog}
         onOpenChange={setShowDeleteDialog}
-        title={t('sources.delete')}
+        title={t('common.delete')}
         description={t('transformations.deleteConfirm')}
         confirmText={t('common.delete')}
         confirmVariant="destructive"

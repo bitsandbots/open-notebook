@@ -36,7 +36,35 @@ class RecentlyViewedResponse(BaseModel):
 
 
 # Search models
-class SearchRequest(BaseModel):
+class NotebookScopeMixin(BaseModel):
+    """Optional notebook scope shared by Search and Ask requests (#574, #87).
+
+    Both `notebook_id` (single, the shape #574 proposed and existing clients
+    already send) and `notebook_ids` (several) are accepted; `scope_notebook_ids`
+    merges them. An empty scope means the whole knowledge base.
+    """
+
+    notebook_id: Optional[str] = Field(
+        None, description="Restrict results to a single notebook"
+    )
+    notebook_ids: Optional[List[str]] = Field(
+        None,
+        max_length=50,
+        description="Restrict results to these notebooks (omit or empty for all)",
+    )
+
+    @property
+    def scope_notebook_ids(self) -> List[str]:
+        # Keep empty strings so validation rejects them instead of silently
+        # widening the scope to the whole knowledge base.
+        merged: List[str] = []
+        for nb_id in [self.notebook_id, *(self.notebook_ids or [])]:
+            if nb_id is not None and nb_id not in merged:
+                merged.append(nb_id)
+        return merged
+
+
+class SearchRequest(NotebookScopeMixin):
     query: str = Field(..., description="Search query")
     type: Literal["text", "vector"] = Field("text", description="Search type")
     limit: int = Field(100, description="Maximum number of results", ge=1, le=1000)
@@ -53,7 +81,7 @@ class SearchResponse(BaseModel):
     search_type: str = Field(..., description="Type of search performed")
 
 
-class AskRequest(BaseModel):
+class AskRequest(NotebookScopeMixin):
     question: str = Field(..., description="Question to ask the knowledge base")
     strategy_model: str = Field(..., description="Model ID for query strategy")
     answer_model: str = Field(..., description="Model ID for individual answers")
@@ -280,6 +308,9 @@ class SettingsResponse(BaseModel):
     docling_ocr: Optional[bool] = None
     docling_formulas: Optional[bool] = None
     docling_vision: Optional[bool] = None
+    docling_vision_url: Optional[str] = None
+    docling_vision_model: Optional[str] = None
+    docling_vision_prompt: Optional[str] = None
     youtube_preferred_languages: Optional[List[str]] = None
 
 
@@ -291,10 +322,27 @@ class SettingsUpdate(BaseModel):
     docling_ocr: Optional[bool] = None
     docling_formulas: Optional[bool] = None
     docling_vision: Optional[bool] = None
+    # An empty string clears the field, so the CCORE_DOCLING_VISION_* worker
+    # variable applies again; None (omitted) leaves it unchanged.
+    docling_vision_url: Optional[str] = None
+    docling_vision_model: Optional[str] = None
+    docling_vision_prompt: Optional[str] = None
     youtube_preferred_languages: Optional[List[str]] = None
 
 
 # Sources API models
+def reject_nul_bytes(value: Any) -> Any:
+    # SurrealDB stores a NUL byte but then can't read the record back, so
+    # a source or a queued command holding one breaks later queries (#1558).
+    values = value if isinstance(value, list) else [value]
+    if any(isinstance(v, str) and "\x00" in v for v in values):
+        raise ValueError(
+            "contains a NUL byte (\\x00), which the database can't store. "
+            "Remove it and try again."
+        )
+    return value
+
+
 class AssetModel(BaseModel):
     file_path: Optional[str] = None
     url: Optional[str] = None
@@ -331,6 +379,8 @@ class SourceCreate(BaseModel):
         False, description="Whether to process source asynchronously"
     )
 
+    _no_nul_bytes = field_validator("content", "title", "url")(reject_nul_bytes)
+
     @model_validator(mode="after")
     def validate_notebook_fields(self):
         # Ensure only one of notebook_id or notebooks is provided
@@ -351,9 +401,40 @@ class SourceCreate(BaseModel):
         return self
 
 
+class DuplicateSourceInfo(BaseModel):
+    id: str
+    title: Optional[str] = None
+    filename: Optional[str] = None
+    url: Optional[str] = None
+    created: Optional[str] = None
+    updated: Optional[str] = None
+    excerpt: Optional[str] = None
+    match_reason: str = Field(
+        ..., description="Which key matched: url, content, or filename"
+    )
+
+
+class DuplicateCheckRequest(BaseModel):
+    type: Literal["link", "upload", "text"] = Field(
+        ..., description="Source type: link, upload, or text"
+    )
+    url: Optional[str] = Field(None, description="URL for link type")
+    title: Optional[str] = Field(None, description="Source title")
+    content: Optional[str] = Field(None, description="Text content for text type")
+    filename: Optional[str] = Field(
+        None, description="Original filename for upload type"
+    )
+
+
+class DuplicateCheckResponse(BaseModel):
+    duplicates: List[DuplicateSourceInfo] = Field(default_factory=list)
+
+
 class SourceUpdate(BaseModel):
     title: Optional[str] = Field(None, description="Source title")
     topics: Optional[List[str]] = Field(None, description="Source topics")
+
+    _no_nul_bytes = field_validator("title", "topics")(reject_nul_bytes)
 
 
 class SourceResponse(BaseModel):
@@ -519,6 +600,9 @@ class ApiKeyStatusResponse(BaseModel):
         ...,
         description="Whether OPEN_NOTEBOOK_ENCRYPTION_KEY is set (required to store keys in database)",
     )
+    encryption_key_is_default: bool = Field(
+        ..., description="Whether the public example encryption key is configured"
+    )
 
 
 class TestConnectionResponse(BaseModel):
@@ -572,6 +656,8 @@ SupportedProvider = Literal[
     "dashscope",
     "minimax",
     "novita",
+    "siliconflow",
+    "zai",
     "ppq",
     "cohere",
     "voyage",
@@ -599,6 +685,9 @@ class ProviderInfoResponse(BaseModel):
     )
     env_configured: bool = Field(
         ..., description="Whether the provider is configured via environment variables"
+    )
+    default_api_version: Optional[str] = Field(
+        None, description="API version used when a credential sets none (Azure)"
     )
 
 

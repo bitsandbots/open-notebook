@@ -104,7 +104,7 @@ export function CredentialItem({
           <div className="flex items-center gap-1 shrink-0">
             {testResult && (
               testResult.success
-                ? <Check className="h-4 w-4 text-emerald-500" />
+                ? <Check className="h-4 w-4 text-fern" />
                 : <X className="h-4 w-4 text-destructive" />
             )}
             <Button
@@ -114,7 +114,7 @@ export function CredentialItem({
               title={t('apiKeys.testConnection')}
             >
               {isTestPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plug className="h-4 w-4" />}
-              <span className="hidden sm:inline text-xs">Test</span>
+              <span className="hidden sm:inline text-xs">{t('apiKeys.testShort')}</span>
             </Button>
             <Button
               variant="ghost" size="sm"
@@ -123,7 +123,7 @@ export function CredentialItem({
               title={t('apiKeys.syncModels')}
             >
               <Bot className="h-4 w-4" />
-              <span className="hidden sm:inline text-xs">Models</span>
+              <span className="hidden sm:inline text-xs">{t('navigation.models')}</span>
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setEditOpen(true)} disabled={!!credential.decryption_error} title={t('common.edit')}>
               <Edit className="h-4 w-4" />
@@ -141,10 +141,10 @@ export function CredentialItem({
 
         {/* Decryption error warning */}
         {credential.decryption_error && (
-          <Alert className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
-            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-            <AlertTitle className="text-amber-800 dark:text-amber-200">{t('apiKeys.decryptionError')}</AlertTitle>
-            <AlertDescription className="text-amber-700 dark:text-amber-300 text-sm">
+          <Alert className="border-warn/30 bg-warn-tint">
+            <AlertTriangle className="h-4 w-4 text-warn" />
+            <AlertTitle className="text-warn">{t('apiKeys.decryptionError')}</AlertTitle>
+            <AlertDescription className="text-warn text-sm">
               {t('apiKeys.decryptionErrorDescription')}
             </AlertDescription>
           </Alert>
@@ -171,7 +171,7 @@ export function CredentialItem({
                         <Badge
                           key={model.id}
                           variant={defaultSlot ? 'default' : 'secondary'}
-                          className="text-xs gap-1 pr-0.5 group/model"
+                          className="font-mono text-[11px] gap-1 pr-0.5 group/model"
                         >
                           {model.name}
                           {defaultSlot && <span className="ml-0.5 opacity-75">({defaultSlot})</span>}
@@ -190,6 +190,7 @@ export function CredentialItem({
                             className="opacity-0 group-hover/model:opacity-60 hover:!opacity-100 hover:text-destructive transition-opacity"
                             onClick={() => deleteModel.mutate(model.id)}
                             title={t('models.deleteModel')}
+                            aria-label={t('models.deleteModel')}
                           >
                             <X className="h-3 w-3" />
                           </button>
